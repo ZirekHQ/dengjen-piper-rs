@@ -15,9 +15,7 @@ Please make sure your visual studio is >= 17.11 (Update through Visual studio in
 ```console
 cargo publish -p espeak-rs-sys
 cargo publish -p espeak-rs
-cargo publish -p sonic-rs-sys
 cargo publish -p piper-rs
-cargo publish -p piper-rs-cli
 ```
 
 Note: Please don't create PR from your main branch. only from new feature branch!

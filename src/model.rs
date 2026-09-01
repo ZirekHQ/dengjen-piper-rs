@@ -39,22 +39,93 @@ pub struct ModelConfig {
     pub phoneme_id_map: HashMap<char, Vec<i64>>,
 }
 
+// Mirrors Piper's own phonemes_to_ids: BOS ids, then each phoneme's ids
+// followed by PAD's ids, then EOS ids. Every mapping is a Vec<i64> because a
+// single phoneme can map to more than one id, so each entry is extended in
+// full rather than truncated to its first id.
 pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
     let map = &config.phoneme_id_map;
-    let pad_id = *map.get(&PAD).and_then(|v| v.first()).unwrap_or(&0);
-    let bos_id = *map.get(&BOS).and_then(|v| v.first()).unwrap_or(&0);
-    let eos_id = *map.get(&EOS).and_then(|v| v.first()).unwrap_or(&0);
+    let default_id = [0i64];
+    let bos_ids = map.get(&BOS).map(Vec::as_slice).unwrap_or(&default_id);
+    let pad_ids = map.get(&PAD).map(Vec::as_slice).unwrap_or(&default_id);
+    let eos_ids = map.get(&EOS).map(Vec::as_slice).unwrap_or(&default_id);
 
     let mut ids = Vec::with_capacity((phonemes.len() + 1) * 2);
-    ids.push(bos_id);
+    ids.extend_from_slice(bos_ids);
     for ch in phonemes.chars() {
-        if let Some(id) = map.get(&ch).and_then(|v| v.first()) {
-            ids.push(*id);
-            ids.push(pad_id);
+        if let Some(phoneme_ids) = map.get(&ch) {
+            ids.extend_from_slice(phoneme_ids);
+            ids.extend_from_slice(pad_ids);
         }
     }
-    ids.push(eos_id);
+    ids.extend_from_slice(eos_ids);
     ids
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config_with_map(phoneme_id_map: HashMap<char, Vec<i64>>) -> ModelConfig {
+        ModelConfig {
+            audio: AudioConfig { sample_rate: 22050 },
+            espeak: ESpeakConfig {
+                voice: "en-US".to_string(),
+            },
+            inference: InferenceConfig {
+                noise_scale: 0.667,
+                length_scale: 1.0,
+                noise_w: 0.8,
+            },
+            num_speakers: 1,
+            speaker_id_map: HashMap::new(),
+            phoneme_id_map,
+        }
+    }
+
+    #[test]
+    fn extends_every_id_in_a_multi_id_phoneme_mapping() {
+        let config = config_with_map(HashMap::from([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10, 11]),
+        ]));
+
+        assert_eq!(phonemes_to_ids(&config, "a"), vec![1, 10, 11, 0, 2]);
+    }
+
+    #[test]
+    fn inserts_pad_after_each_phoneme_but_not_after_bos() {
+        let config = config_with_map(HashMap::from([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10]),
+            ('b', vec![20]),
+        ]));
+
+        assert_eq!(phonemes_to_ids(&config, "ab"), vec![1, 10, 0, 20, 0, 2]);
+    }
+
+    #[test]
+    fn skips_phonemes_missing_from_the_map() {
+        let config = config_with_map(HashMap::from([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10]),
+        ]));
+
+        assert_eq!(phonemes_to_ids(&config, "ab"), vec![1, 10, 0, 2]);
+    }
+
+    #[test]
+    fn falls_back_to_zero_when_bos_pad_eos_are_missing() {
+        let config = config_with_map(HashMap::from([('a', vec![5])]));
+
+        assert_eq!(phonemes_to_ids(&config, "a"), vec![0, 5, 0, 0]);
+    }
 }
 
 pub fn infer(

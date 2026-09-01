@@ -1,0 +1,53 @@
+# CodeRabbit configuration — https://docs.coderabbit.ai/reference/configuration
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - "main"
+  path_filters:
+    # Vendored upstream C sources, not ours to review.
+    - "!crates/espeak-rs-sys/espeak-ng/**"
+    - "!target/**"
+    - "!Cargo.lock"
+    - "!**/*.onnx"
+    - "!**/*.wav"
+    - "!**/*.tar.bz2"
+  path_instructions:
+    - path: "crates/espeak-rs-sys/build.rs"
+      instructions: >
+        This build script must support cross-compilation. Cargo build
+        scripts always compile for the host, so `cfg!(target_os = ...)`,
+        `cfg!(windows)`, and `cfg!(unix)` reflect the host, not the target
+        being built. Flag any such check used to pick a target-specific
+        library file pattern, CMake flag, or linker directive — those must
+        read the `CARGO_CFG_TARGET_OS` or `TARGET` env var instead. Host-only
+        checks (e.g. choosing `cp` vs `robocopy.exe` to run on the build
+        machine) are correct as `cfg!` and should not be flagged.
+    - path: "src/**/*.rs"
+      instructions: >
+        This crate wraps ONNX Runtime (`ort`) inference and espeak-ng
+        phonemization behind a `PiperResult`/`PiperError` API. Flag
+        `unwrap`/`expect` on data derived from model config files, tensors,
+        or FFI results rather than a true program invariant.
+    - path: "crates/espeak-rs/src/**/*.rs"
+      instructions: >
+        This crate is the `unsafe` FFI boundary to espeak-ng (CString/CStr
+        conversions, global synth state guarded by `OnceLock`). Flag missing
+        null/error checks on espeak-ng return values, unchecked UTF-8
+        conversions of FFI strings, and any use-after-free or double-free
+        risk around the shared global state.
+  abort_on_close: true
+
+chat:
+  auto_reply: true
