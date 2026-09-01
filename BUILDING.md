@@ -25,5 +25,5 @@ Note: Please don't create PR from your main branch. only from new feature branch
 ## Install piper-rs-cli from Git
 
 ```console
-cargo install piper-rs-cli --git https://github.com/thewh1teagle/piper-rs
+cargo install piper-rs-cli --git https://github.com/ZirekHQ/dengjen-piper-rs
 ```

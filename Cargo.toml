@@ -8,7 +8,7 @@ version = "0.2.0"
 edition = "2021"
 license = "GPL-3.0-or-later"
 description = "Use piper TTS models in Rust"
-repository = "https://github.com/thewh1teagle/piper-rs"
+repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 
 [dependencies]
 espeak-rs = { path = "crates/espeak-rs", version = "0.2.0", default-features = false, optional = true }
