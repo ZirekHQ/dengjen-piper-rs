@@ -102,6 +102,41 @@ fn cursor_advanced(prev_text_ptr: *const c_char, text_ptr: *const c_char) -> boo
     text_ptr != prev_text_ptr
 }
 
+// Bits of the `terminator` value written by `espeak_TextToPhonemesWithTerminator`.
+// These aren't declared in espeak-ng's public API header (they live in the
+// internal `translate.h`), but the header's doc comment for the parameter
+// points at `CLAUSE_INTONATION_FULL_STOP` as an example, and the bit layout
+// has been stable for years. Bits 12-14 select the clause's intonation; bit
+// 19 marks a full sentence boundary as opposed to a sub-clause (comma,
+// colon, semicolon, ...).
+const CLAUSE_INTONATION_MASK: i32 = 0x7000;
+const CLAUSE_INTONATION_FULL_STOP: i32 = 0x0000;
+const CLAUSE_INTONATION_COMMA: i32 = 0x1000;
+const CLAUSE_INTONATION_QUESTION: i32 = 0x2000;
+const CLAUSE_INTONATION_EXCLAMATION: i32 = 0x3000;
+const CLAUSE_TYPE_SENTENCE: i32 = 0x80000;
+
+/// Punctuation character for a clause terminator, mirroring what older
+/// espeak-ng versions embedded directly in the phoneme string before
+/// `espeak_TextToPhonemesWithTerminator` split it out into this out-parameter.
+///
+/// The intonation bits alone don't distinguish every punctuation mark: a
+/// colon carries the same `FULL_STOP` intonation as a period, told apart
+/// here using the sentence-vs-clause type bit, but a semicolon carries the
+/// same `COMMA` intonation as a comma with no further bit available to tell
+/// them apart, so both render as `,`.
+fn terminator_char(terminator: i32) -> Option<char> {
+    let is_sentence = terminator & CLAUSE_TYPE_SENTENCE != 0;
+    match terminator & CLAUSE_INTONATION_MASK {
+        CLAUSE_INTONATION_FULL_STOP if is_sentence => Some('.'),
+        CLAUSE_INTONATION_FULL_STOP => Some(':'),
+        CLAUSE_INTONATION_COMMA => Some(','),
+        CLAUSE_INTONATION_QUESTION => Some('?'),
+        CLAUSE_INTONATION_EXCLAMATION => Some('!'),
+        _ => None,
+    }
+}
+
 /// Strip inline language-switch markers of the form `(xx)` that espeak inserts
 /// when the text contains words from a different language than the active voice.
 fn strip_lang_switches(s: &str) -> String {
@@ -120,11 +155,13 @@ fn strip_lang_switches(s: &str) -> String {
 
 /// Convert `text` to IPA phonemes using the given espeak-ng voice/language.
 ///
-/// `espeak_TextToPhonemes` returns one clause at a time (advancing an internal
-/// pointer through the input). Clauses that end a sentence are terminated by
-/// `.`, `?`, or `!` in the phoneme output; sub-clauses (comma, semicolon, …)
-/// end with the corresponding punctuation but do not break a sentence.
-/// This function accumulates sub-clauses and emits one `String` per sentence.
+/// `espeak_TextToPhonemesWithTerminator` returns one clause at a time
+/// (advancing an internal pointer through the input) along with a terminator
+/// describing the punctuation that ended it. Clauses that end a sentence are
+/// terminated by `.`, `?`, or `!`; sub-clauses (comma, semicolon, …) end with
+/// the corresponding punctuation but do not break a sentence. This function
+/// reconstructs that punctuation from the terminator and accumulates
+/// sub-clauses, emitting one `String` per sentence.
 ///
 /// Inline language-switch markers (`(en)`, `(ar)`, …) are always stripped.
 pub fn text_to_phonemes(
@@ -179,17 +216,23 @@ pub fn text_to_phonemes(
 
             let prev_text_ptr = text_ptr;
             let text_ptr_slot = &mut text_ptr as *mut *const c_char as *mut *const c_void;
+            let mut terminator: i32 = 0;
+            // A raw pointer (unlike `&mut i32`) is UnwindSafe, so it can
+            // cross the catch_unwind closure below without an explicit
+            // AssertUnwindSafe.
+            let terminator_ptr: *mut i32 = &mut terminator;
 
-            // espeak_TextToPhonemes has been observed to abort() or crash on
-            // malformed input; catch_unwind can't stop that, but it does stop
-            // a Rust-side panic (e.g. from an internal `unwrap`) from
-            // unwinding across the FFI boundary, which is itself undefined
-            // behavior.
+            // espeak_TextToPhonemesWithTerminator has been observed to
+            // abort() or crash on malformed input; catch_unwind can't stop
+            // that, but it does stop a Rust-side panic (e.g. from an
+            // internal `unwrap`) from unwinding across the FFI boundary,
+            // which is itself undefined behavior.
             let call_result = std::panic::catch_unwind(|| unsafe {
-                espeak_rs_sys::espeak_TextToPhonemes(
+                espeak_rs_sys::espeak_TextToPhonemesWithTerminator(
                     text_ptr_slot,
                     espeak_rs_sys::espeakCHARS_UTF8 as i32,
                     phoneme_mode,
+                    terminator_ptr,
                 )
             });
 
@@ -214,15 +257,15 @@ pub fn text_to_phonemes(
             }
 
             let clause = unsafe { CStr::from_ptr(res).to_string_lossy().into_owned() };
-            let clause = strip_lang_switches(&clause);
-            if !clause.is_empty() {
-                current.push_str(&clause);
+            current.push_str(&strip_lang_switches(&clause));
+            if let Some(c) = terminator_char(terminator) {
+                current.push(c);
+            }
 
-                // espeak appends the clause-ending punctuation to the phoneme string.
-                // A sentence boundary is '.', '?', or '!'; commas etc. are sub-clauses.
-                if matches!(current.trim_end().chars().last(), Some('.' | '?' | '!')) {
-                    sentences.push(mem::take(&mut current));
-                }
+            // A sentence boundary (as opposed to a sub-clause like a comma)
+            // flushes the accumulated sentence.
+            if terminator & CLAUSE_TYPE_SENTENCE != 0 && !current.is_empty() {
+                sentences.push(mem::take(&mut current));
             }
 
             if !cursor_advanced(prev_text_ptr, text_ptr) {
@@ -232,7 +275,7 @@ pub fn text_to_phonemes(
             }
         }
 
-        // Flush any trailing content that didn't end with sentence punctuation.
+        // Flush any trailing content that didn't end with a sentence boundary.
         if !current.is_empty() {
             sentences.push(mem::take(&mut current));
         }
@@ -251,7 +294,6 @@ mod tests {
         "Who are you? said the Caterpillar. Replied Alice , rather shyly, I hardly know, sir!";
 
     #[test]
-    #[ignore = "fails on current espeak-ng submodule, see #27"]
     fn test_basic_en() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes("test", "en-US", None)?.join("");
         assert_eq!(phonemes, "tˈɛst.");
@@ -259,7 +301,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "fails on current espeak-ng submodule, see #27"]
     fn test_it_splits_sentences() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes(TEXT_ALICE, "en-US", None)?;
         assert_eq!(phonemes.len(), 3);
@@ -267,7 +308,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "fails on current espeak-ng submodule, see #27"]
     fn test_it_adds_phoneme_separator() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes("test", "en-US", Some('_'))?.join("");
         assert_eq!(phonemes, "t_ˈɛ_s_t.");
@@ -275,7 +315,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "fails on current espeak-ng submodule, see #27"]
     fn test_it_preserves_clause_breakers() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes(TEXT_ALICE, "en-US", None)?.join("");
         for c in ['.', ',', '?', '!'] {
@@ -285,10 +324,12 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "fails on current espeak-ng submodule, see #27"]
     fn test_arabic() -> ESpeakResult<()> {
+        // Pinned to the current espeak-ng submodule's Arabic phonemization; the
+        // stress-mark placement (vs. the pre-#27 golden string) reflects an
+        // upstream dictionary change, not this crate's terminator handling.
         let phonemes = text_to_phonemes("مَرْحَبَاً بِكَ أَيُّهَا الْرَّجُلْ", "ar", None)?.join("");
-        assert_eq!(phonemes, "mˈarħabˌaː bikˌa ʔaˈiːuhˌaː alrrˈadʒul.");
+        assert_eq!(phonemes, "mˈarħabˌaː bikˌa ʔaˈiuːhˌaː alrrdʒˈul.");
         Ok(())
     }
 
@@ -305,6 +346,13 @@ mod tests {
     fn test_line_splitting() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes("Hello\nThere\nAnd\nWelcome", "en-US", None)?;
         assert_eq!(phonemes.len(), 4);
+        Ok(())
+    }
+
+    #[test]
+    fn test_it_distinguishes_colon_from_period() -> ESpeakResult<()> {
+        let phonemes = text_to_phonemes("Note: it works", "en-US", None)?.join("");
+        assert!(phonemes.contains(':'), "Colon not preserved: {phonemes:?}");
         Ok(())
     }
 
