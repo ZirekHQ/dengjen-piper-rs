@@ -29,15 +29,15 @@ allow = [
     "Unlicense",
     "Zlib",
     "CDLA-Permissive-2.0",
-    # The optional `espeak-ng` feature (an alternative to the default `espeak-rs`
-    # phonemizer backend) pulls in the `espeak-ng` crate, which is GPL-3.0-or-later.
-    # This doesn't affect piper-rs's own MIT license -- it just lets the license
-    # check pass when that feature is enabled (cargo-deny-action runs with
-    # --all-features).
-    "GPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
-exceptions = []
+exceptions = [
+    # The optional `espeak-ng` feature (an alternative to the default `espeak-rs`
+    # phonemizer backend) pulls in the `espeak-ng` crate, which is GPL-3.0-or-later.
+    # Scoped to this one crate/version rather than a global allow, so a future
+    # GPL dependency elsewhere in the tree still fails the check by default.
+    { allow = ["GPL-3.0-or-later"], crate = "espeak-ng:0.1.3" },
+]
 
 [licenses.private]
 ignore = false
