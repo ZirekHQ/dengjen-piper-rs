@@ -84,6 +84,15 @@ fn locate_espeak_data() -> Option<PathBuf> {
     None
 }
 
+/// Per the espeak-ng API contract, `espeak_TextToPhonemes` must either
+/// advance the clause cursor past the consumed text or set it to NULL to
+/// signal end-of-input. If neither happens, further calls would spin the
+/// caller's loop forever, so that must be treated as a hard failure rather
+/// than silently truncating the output.
+fn cursor_advanced(prev_text_ptr: *const c_char, text_ptr: *const c_char) -> bool {
+    text_ptr != prev_text_ptr
+}
+
 /// Strip inline language-switch markers of the form `(xx)` that espeak inserts
 /// when the text contains words from a different language than the active voice.
 fn strip_lang_switches(s: &str) -> String {
@@ -139,6 +148,10 @@ pub fn text_to_phonemes(
 
     let mut sentences: Vec<String> = Vec::new();
     let mut current = String::new();
+    // Bounds the whole call, not just one line: ESPEAK_LOCK is held for all
+    // of it, so a per-line timeout wouldn't actually cap how long a
+    // multiline request can block every other thread.
+    let started_at = Instant::now();
 
     for line in text.lines() {
         let text_cstr =
@@ -146,7 +159,6 @@ pub fn text_to_phonemes(
 
         // espeak advances this pointer clause by clause, setting it to null when done.
         let mut text_ptr: *const c_char = text_cstr.as_ptr();
-        let started_at = Instant::now();
 
         while !text_ptr.is_null() {
             if started_at.elapsed() > PHONEMIZATION_TIMEOUT {
@@ -184,8 +196,10 @@ pub fn text_to_phonemes(
             // Guard against espeak returning NULL without advancing its
             // cursor, which would otherwise spin this loop forever.
             if res.is_null() {
-                if text_ptr == prev_text_ptr {
-                    break;
+                if !cursor_advanced(prev_text_ptr, text_ptr) {
+                    return Err(ESpeakError(format!(
+                        "espeak_TextToPhonemes returned NULL without advancing past `{language}` text (stuck clause cursor)"
+                    )));
                 }
                 continue;
             }
@@ -202,8 +216,10 @@ pub fn text_to_phonemes(
                 }
             }
 
-            if text_ptr == prev_text_ptr {
-                break;
+            if !cursor_advanced(prev_text_ptr, text_ptr) {
+                return Err(ESpeakError(format!(
+                    "espeak_TextToPhonemes did not advance past `{language}` text (stuck clause cursor)"
+                )));
             }
         }
 
@@ -276,6 +292,16 @@ mod tests {
         let phonemes = text_to_phonemes("Hello\nThere\nAnd\nWelcome", "en-US", None)?;
         assert_eq!(phonemes.len(), 4);
         Ok(())
+    }
+
+    #[test]
+    fn test_cursor_advanced() {
+        let buf = *b"abc\0";
+        let start: *const c_char = buf.as_ptr() as *const c_char;
+        let advanced: *const c_char = unsafe { start.add(1) };
+
+        assert!(cursor_advanced(start, advanced));
+        assert!(!cursor_advanced(start, start));
     }
 
     /// libespeak-ng keeps its state (current voice, output buffers, clause
