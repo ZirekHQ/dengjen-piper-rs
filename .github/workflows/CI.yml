@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang, espeak-ng, and alsa
+        # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
+        # not by piper-rs itself.
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: cargo test (piper-rs, default features, espeak-rs backend)
+        run: cargo test -p piper-rs
+      - name: cargo test (espeak-rs, single-threaded)
+        # espeak-ng's global voice-table state isn't thread-safe; the default
+        # parallel test runner corrupts it and segfaults (SIGSEGV). Same
+        # mitigation dengjen-tts uses for its espeak-ng-backed crates.
+        run: cargo test -p espeak-rs -- --test-threads=1
+      - name: cargo test (piper-rs, espeak-ng backend, espeak-rs disabled)
+        # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
+        # so each needs its own run rather than a single --all-features build.
+        run: cargo test -p piper-rs --no-default-features --features espeak-ng

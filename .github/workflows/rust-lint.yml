@@ -1,0 +1,89 @@
+name: Rust Lint
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
+          components: clippy
+      - run: cargo install clippy-sarif sarif-fmt --locked
+      - name: cargo clippy (default features, espeak-rs backend)
+        # --lib --bins, not --all-targets: examples/ pulls in the `rodio` dev-dependency,
+        # whose `cpal` backend needs libasound2-dev on Linux. Scoped to what actually ships.
+        # --all-features is skipped too: src/lib.rs treats espeak-rs and espeak-ng as
+        # mutually exclusive backends and hits a deliberate compile_error if both are on.
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --lib --bins --message-format=json -- -D warnings \
+            | clippy-sarif | tee clippy-results.sarif | sarif-fmt
+      - name: upload clippy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
+        with:
+          sarif_file: clippy-results.sarif
+      - name: cargo clippy (espeak-ng backend, espeak-rs disabled)
+        run: cargo clippy --lib --bins --no-default-features --features espeak-ng -- -D warnings
+
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      checks: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: stable
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          # Licenses/bans/sources are cheap and don't need a full build. Advisories are also
+          # covered by the separate `rustsec/audit-check` job above (kept as belt-and-braces).
+          command: check licenses bans sources
