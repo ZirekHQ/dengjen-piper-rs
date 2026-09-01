@@ -277,4 +277,34 @@ mod tests {
         assert_eq!(phonemes.len(), 4);
         Ok(())
     }
+
+    /// libespeak-ng keeps its state (current voice, output buffers, clause
+    /// cursor) in process-global C statics. Calling `text_to_phonemes`
+    /// concurrently from multiple threads without synchronization corrupts
+    /// that state; before the `ESPEAK_LOCK` mutex was added this reliably
+    /// segfaulted the whole test process within the first couple of runs
+    /// under `cargo test`'s default parallel test execution.
+    #[test]
+    fn test_concurrent_calls_do_not_crash() {
+        use std::thread;
+
+        let inputs: [(&str, &str); 4] = [
+            ("Who are you? said the Caterpillar.", "en-US"),
+            ("مَرْحَبَاً بِكَ أَيُّهَا الْرَّجُلْ", "ar"),
+            ("Hello\nThere\nAnd\nWelcome", "en-US"),
+            ("Replied Alice, rather shyly, I hardly know, sir!", "en-US"),
+        ];
+
+        let handles: Vec<_> = (0..16)
+            .map(|i| {
+                let (text, lang) = inputs[i % inputs.len()];
+                thread::spawn(move || text_to_phonemes(text, lang, None))
+            })
+            .collect();
+
+        for handle in handles {
+            let result = handle.join().expect("worker thread panicked");
+            assert!(result.is_ok(), "text_to_phonemes failed: {result:?}");
+        }
+    }
 }
