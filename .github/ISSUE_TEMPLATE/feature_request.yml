@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a new capability or an improvement to existing behavior.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. A bit of context helps decide whether and how to prioritize it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the underlying pain point or scenario, not just the proposed feature. This often suggests alternative approaches.
+      placeholder: e.g. "There's no way to stream audio output incrementally, so long inputs block until synthesis fully completes..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What should change? If you have a specific API in mind, sketch it; if not, just describe the desired outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, or existing workarounds.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Links to similar features in other TTS crates/libraries, benchmarks, etc.
