@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang and espeak-ng
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: cargo test (default features: espeak-rs)
+        run: cargo test --workspace
+      - name: cargo test (espeak-ng backend, espeak-rs disabled)
+        # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
+        # so each needs its own run rather than a single --all-features build.
+        run: cargo test --no-default-features --features espeak-ng
