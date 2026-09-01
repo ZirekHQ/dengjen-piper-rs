@@ -6,7 +6,7 @@ resolver = "1"
 name = "piper-rs"
 version = "0.2.0"
 edition = "2021"
-license = "MIT"
+license = "GPL-3.0-or-later"
 description = "Use piper TTS models in Rust"
 repository = "https://github.com/thewh1teagle/piper-rs"
 

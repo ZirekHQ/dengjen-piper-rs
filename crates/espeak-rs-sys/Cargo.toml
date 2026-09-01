@@ -3,7 +3,7 @@ name = "espeak-rs-sys"
 version = "0.2.0"
 edition = "2021"
 description = "Rust bindings to espeak-ng"
-license = "MIT"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/thewh1teagle/piper-rs"
 
 include = [

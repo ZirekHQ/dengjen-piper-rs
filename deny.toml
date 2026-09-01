@@ -29,15 +29,10 @@ allow = [
     "Unlicense",
     "Zlib",
     "CDLA-Permissive-2.0",
+    "GPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
-exceptions = [
-    # The optional `espeak-ng` feature (an alternative to the default `espeak-rs`
-    # phonemizer backend) pulls in the `espeak-ng` crate, which is GPL-3.0-or-later.
-    # Scoped to this one crate/version rather than a global allow, so a future
-    # GPL dependency elsewhere in the tree still fails the check by default.
-    { allow = ["GPL-3.0-or-later"], crate = "espeak-ng:0.1.3" },
-]
+exceptions = []
 
 [licenses.private]
 ignore = false
