@@ -3,7 +3,8 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
 const ESPEAKNG_DATA_DIR_NAME: &str = "espeak-ng-data";
@@ -22,6 +23,23 @@ impl std::fmt::Display for ESpeakError {
 pub type ESpeakResult<T> = Result<T, ESpeakError>;
 
 static ESPEAK_INIT: OnceLock<ESpeakResult<()>> = OnceLock::new();
+
+// libespeak-ng keeps all state (current voice, output buffers, clause cursor)
+// as process-global C statics; calling into it from more than one thread at a
+// time corrupts that state and has been observed to segfault. Serialize every
+// call behind a single lock rather than relying on the caller to do so.
+static ESPEAK_LOCK: Mutex<()> = Mutex::new(());
+
+// `espeak_TextToPhonemes` is a synchronous, blocking C call with no
+// cancellation mechanism, so this can only bound the number of clause-by-
+// clause calls we're willing to make in a row - it's checked *between*
+// calls, not inside one. It cannot interrupt a single call that never
+// returns: espeak's global state (guarded by ESPEAK_LOCK above) makes it
+// unsound to abandon a call and let another thread proceed while the first
+// might still be mutating that state. A hard per-call timeout would need
+// to run espeak-ng out-of-process so a hang can be killed at the OS level;
+// that's a larger architectural change, not attempted here.
+const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn init_espeak() -> ESpeakResult<()> {
     let data_dir = locate_espeak_data();
@@ -75,6 +93,15 @@ fn locate_espeak_data() -> Option<PathBuf> {
     None
 }
 
+/// Per the espeak-ng API contract, `espeak_TextToPhonemes` must either
+/// advance the clause cursor past the consumed text or set it to NULL to
+/// signal end-of-input. If neither happens, further calls would spin the
+/// caller's loop forever, so that must be treated as a hard failure rather
+/// than silently truncating the output.
+fn cursor_advanced(prev_text_ptr: *const c_char, text_ptr: *const c_char) -> bool {
+    text_ptr != prev_text_ptr
+}
+
 /// Strip inline language-switch markers of the form `(xx)` that espeak inserts
 /// when the text contains words from a different language than the active voice.
 fn strip_lang_switches(s: &str) -> String {
@@ -105,6 +132,11 @@ pub fn text_to_phonemes(
     language: &str,
     phoneme_separator: Option<char>,
 ) -> ESpeakResult<Vec<String>> {
+    // Only one thread may be inside libespeak-ng at a time (see ESPEAK_LOCK).
+    let _guard = ESPEAK_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     // Ensure the library is initialised exactly once.
     ESPEAK_INIT
         .get_or_init(init_espeak)
@@ -125,6 +157,10 @@ pub fn text_to_phonemes(
 
     let mut sentences: Vec<String> = Vec::new();
     let mut current = String::new();
+    // Bounds the whole call, not just one line: ESPEAK_LOCK is held for all
+    // of it, so a per-line timeout wouldn't actually cap how long a
+    // multiline request can block every other thread.
+    let started_at = Instant::now();
 
     for line in text.lines() {
         let text_cstr =
@@ -134,29 +170,65 @@ pub fn text_to_phonemes(
         let mut text_ptr: *const c_char = text_cstr.as_ptr();
 
         while !text_ptr.is_null() {
-            let clause = unsafe {
-                let res = espeak_rs_sys::espeak_TextToPhonemes(
-                    &mut text_ptr as *mut *const c_char as *mut *const c_void,
+            if started_at.elapsed() > PHONEMIZATION_TIMEOUT {
+                return Err(ESpeakError(format!(
+                    "Timed out phonemizing `{language}` text after {:?}",
+                    PHONEMIZATION_TIMEOUT
+                )));
+            }
+
+            let prev_text_ptr = text_ptr;
+            let text_ptr_slot = &mut text_ptr as *mut *const c_char as *mut *const c_void;
+
+            // espeak_TextToPhonemes has been observed to abort() or crash on
+            // malformed input; catch_unwind can't stop that, but it does stop
+            // a Rust-side panic (e.g. from an internal `unwrap`) from
+            // unwinding across the FFI boundary, which is itself undefined
+            // behavior.
+            let call_result = std::panic::catch_unwind(|| unsafe {
+                espeak_rs_sys::espeak_TextToPhonemes(
+                    text_ptr_slot,
                     espeak_rs_sys::espeakCHARS_UTF8 as i32,
                     phoneme_mode,
-                );
-                if res.is_null() {
-                    continue;
+                )
+            });
+
+            let res = match call_result {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(ESpeakError(format!(
+                        "espeak_TextToPhonemes panicked while phonemizing `{language}` text"
+                    )));
                 }
-                CStr::from_ptr(res).to_string_lossy().into_owned()
             };
 
-            let clause = strip_lang_switches(&clause);
-            if clause.is_empty() {
+            // Guard against espeak returning NULL without advancing its
+            // cursor, which would otherwise spin this loop forever.
+            if res.is_null() {
+                if !cursor_advanced(prev_text_ptr, text_ptr) {
+                    return Err(ESpeakError(format!(
+                        "espeak_TextToPhonemes returned NULL without advancing past `{language}` text (stuck clause cursor)"
+                    )));
+                }
                 continue;
             }
 
-            current.push_str(&clause);
+            let clause = unsafe { CStr::from_ptr(res).to_string_lossy().into_owned() };
+            let clause = strip_lang_switches(&clause);
+            if !clause.is_empty() {
+                current.push_str(&clause);
 
-            // espeak appends the clause-ending punctuation to the phoneme string.
-            // A sentence boundary is '.', '?', or '!'; commas etc. are sub-clauses.
-            if matches!(current.trim_end().chars().last(), Some('.' | '?' | '!')) {
-                sentences.push(mem::take(&mut current));
+                // espeak appends the clause-ending punctuation to the phoneme string.
+                // A sentence boundary is '.', '?', or '!'; commas etc. are sub-clauses.
+                if matches!(current.trim_end().chars().last(), Some('.' | '?' | '!')) {
+                    sentences.push(mem::take(&mut current));
+                }
+            }
+
+            if !cursor_advanced(prev_text_ptr, text_ptr) {
+                return Err(ESpeakError(format!(
+                    "espeak_TextToPhonemes did not advance past `{language}` text (stuck clause cursor)"
+                )));
             }
         }
 
@@ -234,5 +306,45 @@ mod tests {
         let phonemes = text_to_phonemes("Hello\nThere\nAnd\nWelcome", "en-US", None)?;
         assert_eq!(phonemes.len(), 4);
         Ok(())
+    }
+
+    #[test]
+    fn test_cursor_advanced() {
+        let buf = *b"abc\0";
+        let start: *const c_char = buf.as_ptr() as *const c_char;
+        let advanced: *const c_char = unsafe { start.add(1) };
+
+        assert!(cursor_advanced(start, advanced));
+        assert!(!cursor_advanced(start, start));
+    }
+
+    /// libespeak-ng keeps its state (current voice, output buffers, clause
+    /// cursor) in process-global C statics. Calling `text_to_phonemes`
+    /// concurrently from multiple threads without synchronization corrupts
+    /// that state; before the `ESPEAK_LOCK` mutex was added this reliably
+    /// segfaulted the whole test process within the first couple of runs
+    /// under `cargo test`'s default parallel test execution.
+    #[test]
+    fn test_concurrent_calls_do_not_crash() {
+        use std::thread;
+
+        let inputs: [(&str, &str); 4] = [
+            ("Who are you? said the Caterpillar.", "en-US"),
+            ("مَرْحَبَاً بِكَ أَيُّهَا الْرَّجُلْ", "ar"),
+            ("Hello\nThere\nAnd\nWelcome", "en-US"),
+            ("Replied Alice, rather shyly, I hardly know, sir!", "en-US"),
+        ];
+
+        let handles: Vec<_> = (0..16)
+            .map(|i| {
+                let (text, lang) = inputs[i % inputs.len()];
+                thread::spawn(move || text_to_phonemes(text, lang, None))
+            })
+            .collect();
+
+        for handle in handles {
+            let result = handle.join().expect("worker thread panicked");
+            assert!(result.is_ok(), "text_to_phonemes failed: {result:?}");
+        }
     }
 }
