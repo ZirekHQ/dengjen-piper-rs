@@ -159,9 +159,10 @@ fn strip_lang_switches(s: &str) -> String {
 /// (advancing an internal pointer through the input) along with a terminator
 /// describing the punctuation that ended it. Clauses that end a sentence are
 /// terminated by `.`, `?`, or `!`; sub-clauses (comma, semicolon, …) end with
-/// the corresponding punctuation but do not break a sentence. This function
-/// reconstructs that punctuation from the terminator and accumulates
-/// sub-clauses, emitting one `String` per sentence.
+/// `,` or `:` but do not break a sentence — see [`terminator_char`] for which
+/// marks are distinguishable at all. This function reconstructs that
+/// punctuation from the terminator and accumulates sub-clauses, emitting one
+/// `String` per sentence.
 ///
 /// Inline language-switch markers (`(en)`, `(ar)`, …) are always stripped.
 pub fn text_to_phonemes(
