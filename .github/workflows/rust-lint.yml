@@ -31,7 +31,7 @@ jobs:
           toolchain: stable
           components: clippy
       - run: cargo install clippy-sarif sarif-fmt --locked
-      - name: cargo clippy (default features: espeak-rs)
+      - name: cargo clippy (default features, espeak-rs backend)
         # --lib --bins, not --all-targets: examples/ pulls in the `rodio` dev-dependency,
         # whose `cpal` backend needs libasound2-dev on Linux. Scoped to what actually ships.
         # --all-features is skipped too: src/lib.rs treats espeak-rs and espeak-ng as

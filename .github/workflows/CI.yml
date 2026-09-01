@@ -24,7 +24,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - name: cargo test (default features: espeak-rs)
+      - name: cargo test (default features, espeak-rs backend)
         run: cargo test --workspace
       - name: cargo test (espeak-ng backend, espeak-rs disabled)
         # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
