@@ -1,0 +1,49 @@
+name: Publish to crates.io
+
+on:
+  push:
+    tags:
+      - "publish-*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+
+      # Tiered because each crate depends on the previous one by version: a publish
+      # only becomes resolvable to its dependent once crates.io's index (not just the
+      # publish API response) has actually picked it up, hence the wait step per tier.
+      - name: publish tier 1 (espeak-rs-sys)
+        run: cargo publish -p espeak-rs-sys --locked
+      - name: wait for tier 1 to index
+        run: |
+          version=$(grep -m1 '^version' crates/espeak-rs-sys/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          bash .github/scripts/wait-for-crate.sh espeak-rs-sys "$version"
+
+      - name: publish tier 2 (espeak-rs)
+        run: cargo publish -p espeak-rs --locked
+      - name: wait for tier 2 to index
+        run: |
+          version=$(grep -m1 '^version' crates/espeak-rs/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
+          bash .github/scripts/wait-for-crate.sh espeak-rs "$version"
+
+      - name: publish tier 3 (piper-rs)
+        run: cargo publish -p piper-rs --locked

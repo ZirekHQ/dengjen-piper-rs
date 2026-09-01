@@ -1,0 +1,87 @@
+name: Bug report
+description: Something in piper-rs isn't behaving the way it should.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. The fields below help reproduce and diagnose the problem quickly — please fill in as much as you can.
+
+  - type: input
+    id: crate-version
+    attributes:
+      label: piper-rs version
+      description: From Cargo.toml / Cargo.lock, or the git rev if built from source.
+      placeholder: e.g. 0.2.0
+    validations:
+      required: true
+
+  - type: input
+    id: rust-version
+    attributes:
+      label: Rust version
+      description: Output of `rustc --version`.
+      placeholder: e.g. rustc 1.82.0 (f6e511eec 2024-10-15)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: espeak backend
+      description: Which phonemization backend was enabled — see the `espeak-rs`/`espeak-ng` features in Cargo.toml.
+      options:
+        - espeak-rs (bundled, default)
+        - espeak-ng (system library)
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: OS / platform
+      placeholder: e.g. Ubuntu 24.04 (x86_64) / Windows 11 / macOS 15
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Voice model
+      description: Which Piper model was in use when the bug happened. Skip if not model-specific.
+      placeholder: e.g. en_US-lessac-medium
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, step by step? A minimal code snippet is ideal.
+      placeholder: |
+        1. Load model X
+        2. Call synthesize with input "..."
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What you thought would happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happened. Include panic messages / error output verbatim.
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Workarounds you tried, related issues, backtraces, etc.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage help / getting started
+    url: https://github.com/ZirekHQ/dengjen-piper-rs/blob/main/README.md
+    about: Start here for install instructions and examples.
+  - name: Build issues
+    url: https://github.com/ZirekHQ/dengjen-piper-rs/blob/main/BUILDING.md
+    about: Known linker/build gotchas, e.g. the Windows LNK2019 issue.
