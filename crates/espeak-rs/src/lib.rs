@@ -3,7 +3,8 @@ use std::ffi::{c_char, c_void, CStr, CString};
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
 const ESPEAKNG_DATA_DIR_NAME: &str = "espeak-ng-data";
@@ -22,6 +23,14 @@ impl std::fmt::Display for ESpeakError {
 pub type ESpeakResult<T> = Result<T, ESpeakError>;
 
 static ESPEAK_INIT: OnceLock<ESpeakResult<()>> = OnceLock::new();
+
+// libespeak-ng keeps all state (current voice, output buffers, clause cursor)
+// as process-global C statics; calling into it from more than one thread at a
+// time corrupts that state and has been observed to segfault. Serialize every
+// call behind a single lock rather than relying on the caller to do so.
+static ESPEAK_LOCK: Mutex<()> = Mutex::new(());
+
+const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn init_espeak() -> ESpeakResult<()> {
     let data_dir = locate_espeak_data();
@@ -105,6 +114,11 @@ pub fn text_to_phonemes(
     language: &str,
     phoneme_separator: Option<char>,
 ) -> ESpeakResult<Vec<String>> {
+    // Only one thread may be inside libespeak-ng at a time (see ESPEAK_LOCK).
+    let _guard = ESPEAK_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
     // Ensure the library is initialised exactly once.
     ESPEAK_INIT
         .get_or_init(init_espeak)
@@ -132,31 +146,64 @@ pub fn text_to_phonemes(
 
         // espeak advances this pointer clause by clause, setting it to null when done.
         let mut text_ptr: *const c_char = text_cstr.as_ptr();
+        let started_at = Instant::now();
 
         while !text_ptr.is_null() {
-            let clause = unsafe {
-                let res = espeak_rs_sys::espeak_TextToPhonemes(
-                    &mut text_ptr as *mut *const c_char as *mut *const c_void,
+            if started_at.elapsed() > PHONEMIZATION_TIMEOUT {
+                return Err(ESpeakError(format!(
+                    "Timed out phonemizing `{language}` text after {:?}",
+                    PHONEMIZATION_TIMEOUT
+                )));
+            }
+
+            let prev_text_ptr = text_ptr;
+            let text_ptr_slot = &mut text_ptr as *mut *const c_char as *mut *const c_void;
+
+            // espeak_TextToPhonemes has been observed to abort() or crash on
+            // malformed input; catch_unwind can't stop that, but it does stop
+            // a Rust-side panic (e.g. from an internal `unwrap`) from
+            // unwinding across the FFI boundary, which is itself undefined
+            // behavior.
+            let call_result = std::panic::catch_unwind(|| unsafe {
+                espeak_rs_sys::espeak_TextToPhonemes(
+                    text_ptr_slot,
                     espeak_rs_sys::espeakCHARS_UTF8 as i32,
                     phoneme_mode,
-                );
-                if res.is_null() {
-                    continue;
+                )
+            });
+
+            let res = match call_result {
+                Ok(res) => res,
+                Err(_) => {
+                    return Err(ESpeakError(format!(
+                        "espeak_TextToPhonemes panicked while phonemizing `{language}` text"
+                    )));
                 }
-                CStr::from_ptr(res).to_string_lossy().into_owned()
             };
 
-            let clause = strip_lang_switches(&clause);
-            if clause.is_empty() {
+            // Guard against espeak returning NULL without advancing its
+            // cursor, which would otherwise spin this loop forever.
+            if res.is_null() {
+                if text_ptr == prev_text_ptr {
+                    break;
+                }
                 continue;
             }
 
-            current.push_str(&clause);
+            let clause = unsafe { CStr::from_ptr(res).to_string_lossy().into_owned() };
+            let clause = strip_lang_switches(&clause);
+            if !clause.is_empty() {
+                current.push_str(&clause);
 
-            // espeak appends the clause-ending punctuation to the phoneme string.
-            // A sentence boundary is '.', '?', or '!'; commas etc. are sub-clauses.
-            if matches!(current.trim_end().chars().last(), Some('.' | '?' | '!')) {
-                sentences.push(mem::take(&mut current));
+                // espeak appends the clause-ending punctuation to the phoneme string.
+                // A sentence boundary is '.', '?', or '!'; commas etc. are sub-clauses.
+                if matches!(current.trim_end().chars().last(), Some('.' | '?' | '!')) {
+                    sentences.push(mem::take(&mut current));
+                }
+            }
+
+            if text_ptr == prev_text_ptr {
+                break;
             }
         }
 
