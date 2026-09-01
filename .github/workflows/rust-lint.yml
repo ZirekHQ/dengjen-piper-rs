@@ -31,16 +31,22 @@ jobs:
           toolchain: stable
           components: clippy
       - run: cargo install clippy-sarif sarif-fmt --locked
-      - name: cargo clippy
+      - name: cargo clippy (default features: espeak-rs)
+        # --lib --bins, not --all-targets: examples/ pulls in the `rodio` dev-dependency,
+        # whose `cpal` backend needs libasound2-dev on Linux. Scoped to what actually ships.
+        # --all-features is skipped too: src/lib.rs treats espeak-rs and espeak-ng as
+        # mutually exclusive backends and hits a deliberate compile_error if both are on.
         run: |
           set -o pipefail
-          cargo clippy --workspace --all-targets --all-features --message-format=json -- -D warnings \
+          cargo clippy --workspace --lib --bins --message-format=json -- -D warnings \
             | clippy-sarif | tee clippy-results.sarif | sarif-fmt
       - name: upload clippy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd # v4.37.7
         with:
           sarif_file: clippy-results.sarif
+      - name: cargo clippy (espeak-ng backend, espeak-rs disabled)
+        run: cargo clippy --lib --bins --no-default-features --features espeak-ng -- -D warnings
 
   audit:
     runs-on: ubuntu-latest

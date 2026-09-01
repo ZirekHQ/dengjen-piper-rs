@@ -5,7 +5,6 @@ use std::fs::File;
 use std::path::Path;
 
 use ort::session::Session;
-use serde_json;
 
 use model::infer;
 pub use model::ModelConfig;
