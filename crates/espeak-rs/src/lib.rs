@@ -30,6 +30,15 @@ static ESPEAK_INIT: OnceLock<ESpeakResult<()>> = OnceLock::new();
 // call behind a single lock rather than relying on the caller to do so.
 static ESPEAK_LOCK: Mutex<()> = Mutex::new(());
 
+// `espeak_TextToPhonemes` is a synchronous, blocking C call with no
+// cancellation mechanism, so this can only bound the number of clause-by-
+// clause calls we're willing to make in a row - it's checked *between*
+// calls, not inside one. It cannot interrupt a single call that never
+// returns: espeak's global state (guarded by ESPEAK_LOCK above) makes it
+// unsound to abandon a call and let another thread proceed while the first
+// might still be mutating that state. A hard per-call timeout would need
+// to run espeak-ng out-of-process so a hang can be killed at the OS level;
+// that's a larger architectural change, not attempted here.
 const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn init_espeak() -> ESpeakResult<()> {
