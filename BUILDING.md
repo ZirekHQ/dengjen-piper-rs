@@ -10,6 +10,24 @@ error LNK2019: unresolved external symbol __std_mismatch_1 referenced in functio
 
 Please make sure your visual studio is >= 17.11 (Update through Visual studio installer)
 
+## Cross-compiling for Linux arm64 (e.g. Raspberry Pi)
+
+```console
+sudo apt-get install crossbuild-essential-arm64 pkg-config libssl-dev
+rustup target add aarch64-unknown-linux-gnu
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+  cargo build --release --target aarch64-unknown-linux-gnu
+```
+
+No `CMAKE_TOOLCHAIN_FILE`, sysroot variable, or separately-built `libasound`
+is needed — the `cmake`/`cc` crates already recognize the standard
+`aarch64-linux-gnu-*` cross-compiler naming convention that
+`crossbuild-essential-arm64` installs, and espeak-ng's own CMake build skips
+its tests and native-only intonation data when `CMAKE_CROSSCOMPILING` is set.
+`pkg-config`/`libssl-dev` are only needed on the host, for the `openssl-sys`
+build script (a build-time dependency of `ort`), not for the arm64 target
+itself. See issue #16 and the `linux-arm64` CI job for a verified recipe.
+
 ## Publish new version
 
 Bump the version in the three `Cargo.toml` files (root `piper-rs`, `crates/espeak-rs`,
