@@ -136,6 +136,40 @@ fn macos_link_search_path() -> Option<String> {
     None
 }
 
+/// Reads CMake's own pcaudio detection result out of its cache, rather than
+/// re-implementing `find_library`/`find_path` here. On Linux, CMake enables
+/// `USE_LIBPCAUDIO` only when the system has both libpcaudio and its headers
+/// (see espeak-ng/cmake/deps.cmake), so espeak-ng's static lib references
+/// pcaudio symbols only in that case; the Rust linker needs to match.
+fn cmake_cache_has_pcaudio_enabled(cache_contents: &str) -> bool {
+    cache_contents
+        .lines()
+        .any(|line| line.trim() == "USE_LIBPCAUDIO:BOOL=ON")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cmake_cache_has_pcaudio_enabled;
+
+    #[test]
+    fn returns_true_when_cache_enables_pcaudio() {
+        let cache = "PCAUDIO_LIB:FILEPATH=/usr/lib/libpcaudio.so\nUSE_LIBPCAUDIO:BOOL=ON\n";
+        assert!(cmake_cache_has_pcaudio_enabled(cache));
+    }
+
+    #[test]
+    fn returns_false_when_cache_disables_pcaudio() {
+        let cache = "PCAUDIO_LIB:FILEPATH=PCAUDIO_LIB-NOTFOUND\nUSE_LIBPCAUDIO:BOOL=OFF\n";
+        assert!(!cmake_cache_has_pcaudio_enabled(cache));
+    }
+
+    #[test]
+    fn returns_false_when_cache_missing_key() {
+        let cache = "CMAKE_INSTALL_PREFIX:PATH=/out\n";
+        assert!(!cmake_cache_has_pcaudio_enabled(cache));
+    }
+}
+
 fn main() {
     println!("cargo:rustc-link-lib=speechPlayer");
     println!("cargo:rustc-link-lib=espeak-ng");
@@ -287,6 +321,17 @@ fn main() {
     // Linux
     if target_os == "linux" {
         println!("cargo:rustc-link-lib=dylib=stdc++");
+        // CMake links espeak-ng against pcaudio only when it found the system
+        // lib and headers (see USE_LIBPCAUDIO); mirror that decision here
+        // instead of guessing, so we don't fail to link on hosts that lack
+        // libpcaudio-dev.
+        let cmake_cache = out_dir.join("build").join("CMakeCache.txt");
+        if std::fs::read_to_string(&cmake_cache)
+            .map(|contents| cmake_cache_has_pcaudio_enabled(&contents))
+            .unwrap_or(false)
+        {
+            println!("cargo:rustc-link-lib=dylib=pcaudio");
+        }
     }
 
     if target.contains("apple") {
