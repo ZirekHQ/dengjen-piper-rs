@@ -24,6 +24,14 @@ See [examples](examples)
 
 All pretrained models available at [huggingface.co/rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices/tree/main)
 
+## Unloading models
+
+`Piper` has no `unload()` method because it doesn't need one: dropping a
+`Piper` value releases its ONNX Runtime session, and the native memory
+backing it, immediately. To unload a model on demand — e.g. to swap voices
+in a long-running app — hold it behind an `Option<Piper>` and assign `None`
+to it. See [`examples/unload_model.rs`](examples/unload_model.rs).
+
 ## Credits
 
 This project is inspired by [sonata](https://github.com/mush42/sonata), originally created by [mush42](https://github.com/mush42).
