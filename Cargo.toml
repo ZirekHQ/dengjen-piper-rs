@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/espeak-rs", "crates/piper-core"]
+members = ["crates/espeak-rs", "crates/piper-core", "crates/stub-adapter"]
 resolver = "1"
 
 [package]
