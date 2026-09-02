@@ -35,6 +35,11 @@ jobs:
         # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
         # so each needs its own run rather than a single --all-features build.
         run: cargo test -p piper-rs --no-default-features --features espeak-ng
+      - name: cargo test (espeak-rs-sys, build script unit tests)
+        # build.rs's own #[cfg(test)] module is registered as a `[[test]]` target
+        # in Cargo.toml (Cargo never tests a build script otherwise); run it
+        # explicitly since `-p espeak-rs-sys` isn't exercised by any other step.
+        run: cargo test -p espeak-rs-sys --test build_script_unit_tests
       - name: check ru_listx dictionary is packaged (#23)
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
