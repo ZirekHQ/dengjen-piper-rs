@@ -5,7 +5,7 @@ license = "GPL-3.0-or-later"
 description = "Safe Rust bindings to espeak-ng"
 keywords = ["espeak-ng", "audio", "tts", "speech", "rodio"]
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 # Local crates
