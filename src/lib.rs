@@ -6,8 +6,9 @@ use std::path::Path;
 
 use ort::session::Session;
 
-pub use model::ModelConfig;
 use model::infer;
+pub use model::{AudioConfig, ESpeakConfig, InferenceConfig, ModelConfig};
+pub use model::{BOS, EOS, PAD, phonemes_to_ids};
 
 #[derive(Debug)]
 pub enum PiperError {
