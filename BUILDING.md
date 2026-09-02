@@ -1,8 +1,8 @@
 ## Building a distributable binary
 
-`espeak-rs-sys`'s build script compiles eSpeak NG's data files (dictionaries,
+`dengjen-espeak-rs-sys`'s build script compiles eSpeak NG's data files (dictionaries,
 voices, phoneme tables) and, since it needs *some* directory to build into,
-generates them inside `target/<profile>/build/espeak-rs-sys-<hash>/out/...` —
+generates them inside `target/<profile>/build/dengjen-espeak-rs-sys-<hash>/out/...` —
 an ephemeral, cache-keyed path that disappears the moment `target/` is
 deleted or the crate is rebuilt with a different hash. Copying only the
 compiled binary out of `target/` and discarding the rest (e.g. `cargo build
@@ -15,7 +15,7 @@ to the directory that contains the `espeak-ng-data` directory.
 
 To make this easy, the build script also copies `espeak-ng-data` to
 `target/<profile>/espeak-ng-data`, right next to the binary itself. At
-runtime, `espeak-rs` looks for `espeak-ng-data` (in this order) in:
+runtime, `dengjen-espeak-rs` looks for `espeak-ng-data` (in this order) in:
 
 1. the directory named by the `PIPER_ESPEAKNG_DATA_DIRECTORY` env var,
 2. the current working directory,
@@ -70,11 +70,11 @@ itself. See issue #16 and the `linux-arm64` CI job for a verified recipe.
 
 ## Publish new version
 
-Bump the version in the three `Cargo.toml` files (root `piper-rs`, `crates/espeak-rs`,
+Bump the version in the three `Cargo.toml` files (root `dengjen-piper-rs`, `crates/espeak-rs`,
 `crates/espeak-rs-sys` — they're kept in lockstep), merge to `main`, then push a tag matching
 `publish-*` (e.g. `git tag publish-0.3.0 && git push origin publish-0.3.0`). The
-[`publish` workflow](.github/workflows/publish.yml) publishes espeak-rs-sys, waits for it to
-land on the crates.io index, then espeak-rs, waits again, then piper-rs — each crate depends on
+[`publish` workflow](.github/workflows/publish.yml) publishes dengjen-espeak-rs-sys, waits for it to
+land on the crates.io index, then dengjen-espeak-rs, waits again, then dengjen-piper-rs — each crate depends on
 the version of the previous one just published, so publishing out of order or without waiting
 will fail to resolve.
 

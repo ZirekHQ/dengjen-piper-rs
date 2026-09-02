@@ -6,7 +6,7 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_
 cargo run --example usage en_US-libritts_r-medium.onnx.json 80
 */
 
-use piper_rs::Piper;
+use dengjen_piper_rs::Piper;
 use rodio::buffer::SamplesBuffer;
 use std::num::NonZero;
 use std::path::Path;

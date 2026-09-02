@@ -276,6 +276,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
+name = "dengjen-espeak-rs"
+version = "0.2.0"
+dependencies = [
+ "dengjen-espeak-rs-sys",
+]
+
+[[package]]
+name = "dengjen-espeak-rs-sys"
+version = "0.2.0"
+dependencies = [
+ "bindgen",
+ "cmake",
+ "glob",
+]
+
+[[package]]
+name = "dengjen-piper-rs"
+version = "0.2.0"
+dependencies = [
+ "dengjen-espeak-rs",
+ "espeak-ng",
+ "ndarray 0.16.1",
+ "ort",
+ "rodio",
+ "serde",
+ "serde_json",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "der"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,22 +364,6 @@ checksum = "b851fdeabbf4ddb1a212bb542716b42fee095a49f74bbf34de297ae5deb26158"
 dependencies = [
  "bitflags 2.11.1",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "espeak-rs"
-version = "0.2.0"
-dependencies = [
- "espeak-rs-sys",
-]
-
-[[package]]
-name = "espeak-rs-sys"
-version = "0.2.0"
-dependencies = [
- "bindgen",
- "cmake",
- "glob",
 ]
 
 [[package]]
@@ -1000,20 +1014,6 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
-
-[[package]]
-name = "piper-rs"
-version = "0.2.0"
-dependencies = [
- "espeak-ng",
- "espeak-rs",
- "ndarray 0.16.1",
- "ort",
- "rodio",
- "serde",
- "serde_json",
- "unicode-normalization",
-]
 
 [[package]]
 name = "pkg-config"

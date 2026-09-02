@@ -12,10 +12,10 @@ set -euo pipefail
 # straight from the source tree and can't observe this class of bug).
 needle="espeak-ng/dictsource/extra/ru_listx"
 
-listing=$(cargo package --list --allow-dirty -p espeak-rs-sys)
+listing=$(cargo package --list --allow-dirty -p dengjen-espeak-rs-sys)
 if ! grep -qxF "$needle" <<<"$listing"; then
-  echo "::error::${needle} is missing from the espeak-rs-sys package file list; the published crate would ship without the Russian extra dictionary (see #23)" >&2
+  echo "::error::${needle} is missing from the dengjen-espeak-rs-sys package file list; the published crate would ship without the Russian extra dictionary (see #23)" >&2
   exit 1
 fi
 
-echo "${needle} is present in the espeak-rs-sys package file list"
+echo "${needle} is present in the dengjen-espeak-rs-sys package file list"

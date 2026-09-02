@@ -31,19 +31,19 @@ jobs:
       # Tiered because each crate depends on the previous one by version: a publish
       # only becomes resolvable to its dependent once crates.io's index (not just the
       # publish API response) has actually picked it up, hence the wait step per tier.
-      - name: publish tier 1 (espeak-rs-sys)
-        run: cargo publish -p espeak-rs-sys --locked
+      - name: publish tier 1 (dengjen-espeak-rs-sys)
+        run: cargo publish -p dengjen-espeak-rs-sys --locked
       - name: wait for tier 1 to index
         run: |
           version=$(grep -m1 '^version' crates/espeak-rs-sys/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
-          bash .github/scripts/wait-for-crate.sh espeak-rs-sys "$version"
+          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs-sys "$version"
 
-      - name: publish tier 2 (espeak-rs)
-        run: cargo publish -p espeak-rs --locked
+      - name: publish tier 2 (dengjen-espeak-rs)
+        run: cargo publish -p dengjen-espeak-rs --locked
       - name: wait for tier 2 to index
         run: |
           version=$(grep -m1 '^version' crates/espeak-rs/Cargo.toml | sed -E 's/version = "(.*)"/\1/')
-          bash .github/scripts/wait-for-crate.sh espeak-rs "$version"
+          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs "$version"
 
-      - name: publish tier 3 (piper-rs)
-        run: cargo publish -p piper-rs --locked
+      - name: publish tier 3 (dengjen-piper-rs)
+        run: cargo publish -p dengjen-piper-rs --locked

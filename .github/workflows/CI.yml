@@ -18,28 +18,28 @@ jobs:
         run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
-        # not by piper-rs itself.
+        # not by dengjen-piper-rs itself.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           submodules: recursive
           persist-credentials: false
-      - name: cargo test (piper-rs, default features, espeak-rs backend)
-        run: cargo test -p piper-rs
-      - name: cargo test (espeak-rs, single-threaded)
+      - name: cargo test (dengjen-piper-rs, default features, espeak-rs backend)
+        run: cargo test -p dengjen-piper-rs
+      - name: cargo test (dengjen-espeak-rs, single-threaded)
         # espeak-ng's global voice-table state isn't thread-safe; the default
         # parallel test runner corrupts it and segfaults (SIGSEGV). Same
         # mitigation dengjen-tts uses for its espeak-ng-backed crates.
-        run: cargo test -p espeak-rs -- --test-threads=1
-      - name: cargo test (piper-rs, espeak-ng backend, espeak-rs disabled)
+        run: cargo test -p dengjen-espeak-rs -- --test-threads=1
+      - name: cargo test (dengjen-piper-rs, espeak-ng backend, espeak-rs disabled)
         # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
         # so each needs its own run rather than a single --all-features build.
-        run: cargo test -p piper-rs --no-default-features --features espeak-ng
-      - name: cargo test (espeak-rs-sys, build script unit tests)
+        run: cargo test -p dengjen-piper-rs --no-default-features --features espeak-ng
+      - name: cargo test (dengjen-espeak-rs-sys, build script unit tests)
         # build.rs's own #[cfg(test)] module is registered as a `[[test]]` target
         # in Cargo.toml (Cargo never tests a build script otherwise); run it
-        # explicitly since `-p espeak-rs-sys` isn't exercised by any other step.
-        run: cargo test -p espeak-rs-sys --test build_script_unit_tests
+        # explicitly since `-p dengjen-espeak-rs-sys` isn't exercised by any other step.
+        run: cargo test -p dengjen-espeak-rs-sys --test build_script_unit_tests
       - name: check ru_listx dictionary is packaged (#23)
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
@@ -69,11 +69,11 @@ jobs:
         with:
           ndk-version: r27c
           add-to-path: false
-      - name: cargo build (espeak-rs-sys, aarch64-linux-android)
+      - name: cargo build (dengjen-espeak-rs-sys, aarch64-linux-android)
         env:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
-        run: cargo build -p espeak-rs-sys --target aarch64-linux-android
+        run: cargo build -p dengjen-espeak-rs-sys --target aarch64-linux-android
 
   # Cross-compiling for Linux arm64 (e.g. Raspberry Pi) needs no toolchain
   # file or sysroot of its own: the `cmake`/`cc` crates already recognize the
@@ -99,7 +99,7 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-unknown-linux-gnu
-      - name: cargo build (piper-rs, aarch64-unknown-linux-gnu)
+      - name: cargo build (dengjen-piper-rs, aarch64-unknown-linux-gnu)
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-        run: cargo build -p piper-rs --target aarch64-unknown-linux-gnu
+        run: cargo build -p dengjen-piper-rs --target aarch64-unknown-linux-gnu
