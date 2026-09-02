@@ -67,7 +67,17 @@ fn copy_folder(src: &Path, dst: &Path) {
             .expect("copy destination must have a UTF-8 file name")
     ));
     // Clean up a stale tmp dir left behind by an earlier interrupted copy.
+    // Errors are expected when there's nothing to remove, but `tmp_dst`
+    // must be gone before the copy below: otherwise `cp`/`robocopy` would
+    // merge into whatever's left of that stale copy instead of starting
+    // clean, and the corrupted result would still get renamed into place
+    // as if it were a fresh, complete copy.
     let _ = std::fs::remove_dir_all(&tmp_dst);
+    assert!(
+        !tmp_dst.exists(),
+        "failed to remove stale temp copy at {} before copying into it",
+        tmp_dst.display()
+    );
 
     let status = if cfg!(windows) {
         std::process::Command::new("robocopy.exe")
@@ -566,6 +576,44 @@ mod tests {
             !dst.exists(),
             "a failed copy must not leave the destination behind"
         );
+    }
+
+    #[test]
+    fn copy_folder_refuses_to_proceed_when_a_stale_tmp_copy_cannot_be_removed() {
+        // Regression test: an earlier interrupted copy can leave
+        // `<dst>.tmp` behind. If cleaning it up fails silently, `cp`
+        // would merge into it instead of starting clean, and the
+        // corrupted result would be renamed into place as if it were a
+        // fresh, complete copy. Force a removal failure the portable way:
+        // `<dst>.tmp` is a plain file, so `remove_dir_all` errors (it's
+        // not a directory) and can never succeed, however many times
+        // `copy_folder` retries -- unlike a permissions-based failure,
+        // which `cp -rf` running as root (as in a container) could still
+        // bypass.
+        let src = scratch_path("stale-tmp-src");
+        let dst = scratch_path("stale-tmp-dst");
+        let tmp_dst = dst.parent().unwrap().join(format!(
+            "{}.tmp",
+            dst.file_name().unwrap().to_str().unwrap()
+        ));
+        std::fs::create_dir_all(src.join("nested")).unwrap();
+        std::fs::write(src.join("nested").join("file.txt"), b"hello").unwrap();
+        std::fs::create_dir_all(tmp_dst.parent().unwrap()).unwrap();
+        std::fs::write(&tmp_dst, b"not a directory").unwrap();
+
+        let panicked = catch_unwind(AssertUnwindSafe(|| copy_folder(&src, &dst))).is_err();
+
+        assert!(
+            panicked,
+            "copy_folder should panic rather than copy into an unremovable stale tmp path"
+        );
+        assert!(
+            !dst.exists(),
+            "a refused copy must not leave the destination behind"
+        );
+
+        std::fs::remove_dir_all(&src).unwrap();
+        std::fs::remove_file(&tmp_dst).unwrap();
     }
 }
 
