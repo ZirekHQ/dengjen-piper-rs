@@ -43,6 +43,33 @@ jobs:
       - name: check ru_listx dictionary is packaged (#23)
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
+  lint:
+    name: clippy (dengjen-piper-core)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: cargo clippy (dengjen-piper-core, deny warnings)
+        run: cargo clippy -p dengjen-piper-core -- -D warnings
+
+  sonarcloud:
+    name: SonarCloud scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
   # Cross-compiling for Android has no unit tests of its own (it's a build
   # script exercising CMake + the NDK toolchain), so an actual cross-build
   # is the regression test for it. See issue #9.
