@@ -121,12 +121,21 @@ const ESPEAK_NG_DATA_DIR_NAME: &str = "espeak-ng-data";
 /// `target_dir` makes a plain `cargo build --release` runnable (and
 /// distributable, by copying this folder alongside the binary) with no
 /// `PIPER_ESPEAKNG_DATA_DIRECTORY` needed. See issue #10.
+///
+/// No-ops when `src` doesn't exist: when cross-compiling without a
+/// `-DNativeBuild=...` pointing at a host build of espeak-ng, upstream's
+/// CMakeLists.txt never `include()`s `cmake/data.cmake` at all, so no data
+/// is installed to `out_dir/share` in the first place (see the top-level
+/// `CMAKE_CROSSCOMPILING` branch) -- there is nothing to copy, not a failure.
 fn copy_espeak_ng_data_next_to_binary(out_dir: &Path, target_dir: &Path) {
     let dst = target_dir.join(ESPEAK_NG_DATA_DIR_NAME);
     if dst.exists() {
         return;
     }
     let src = out_dir.join("share").join(ESPEAK_NG_DATA_DIR_NAME);
+    if !src.exists() {
+        return;
+    }
     copy_folder(&src, &dst);
 }
 
@@ -684,6 +693,25 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&target_dir).unwrap();
+    }
+
+    #[test]
+    fn does_nothing_when_out_dir_has_no_espeak_ng_data_to_copy() {
+        // Regression: cross-compiling without `-DNativeBuild=...` makes
+        // upstream's CMakeLists.txt skip `include(cmake/data.cmake)`
+        // entirely (see the top-level `CMAKE_CROSSCOMPILING` branch), so
+        // `out_dir/share/espeak-ng-data` never exists. This must be a no-op,
+        // not a panic (see #46 CI failure on aarch64 cross-compile jobs).
+        let out_dir = scratch_path("espeak-data-cross-compile-out");
+        let target_dir = scratch_path("espeak-data-cross-compile-target");
+        std::fs::create_dir_all(&out_dir).unwrap();
+        assert!(!out_dir.join("share").exists());
+
+        copy_espeak_ng_data_next_to_binary(&out_dir, &target_dir);
+
+        assert!(!target_dir.join("espeak-ng-data").exists());
+
+        std::fs::remove_dir_all(&out_dir).unwrap();
     }
 }
 
