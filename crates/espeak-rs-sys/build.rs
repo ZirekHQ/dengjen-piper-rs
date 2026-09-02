@@ -28,25 +28,71 @@ fn get_cargo_target_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Erro
     Ok(target_dir.to_path_buf())
 }
 
-fn copy_folder(src: &Path, dst: &Path) {
-    std::fs::create_dir_all(dst).expect("Failed to create dst directory");
-    if cfg!(unix) {
-        std::process::Command::new("cp")
-            .arg("-rf")
-            .arg(src)
-            .arg(dst.parent().unwrap())
-            .status()
-            .expect("Failed to execute cp command");
+/// `cp`'s exit status maps directly to success. robocopy's is a bitmask
+/// where 0-7 all mean "succeeded" (0 = nothing to copy, 1 = files copied,
+/// 2/4 = extra/mismatched files noted, 3 = 1+2) and 8+ signals a real
+/// failure; a missing code (killed by a signal) is never a success.
+fn copy_succeeded(is_windows: bool, exit_code: Option<i32>) -> bool {
+    if is_windows {
+        exit_code.is_some_and(|code| code < 8)
+    } else {
+        exit_code == Some(0)
     }
+}
 
-    if cfg!(windows) {
+/// Copies `src` to `dst`, atomically: `dst` is only ever created once the
+/// copy has fully succeeded, by copying into a sibling temp directory and
+/// renaming it into place last. Callers use `dst.exists()` to decide
+/// whether to skip copying on a later build reusing the same `OUT_DIR`, so
+/// a partial or failed copy that left `dst` behind (e.g. from
+/// `create_dir_all` pre-creating it) would permanently poison every
+/// subsequent build with an incomplete tree — see #42.
+fn copy_folder(src: &Path, dst: &Path) {
+    assert!(
+        src.exists(),
+        "copy source not found at {} (for the espeak-ng submodule, did you run \
+         `git submodule update --init`?)",
+        src.display()
+    );
+
+    let parent = dst
+        .parent()
+        .expect("copy destination must have a parent directory");
+    std::fs::create_dir_all(parent).expect("Failed to create parent directory");
+
+    let tmp_dst = parent.join(format!(
+        "{}.tmp",
+        dst.file_name()
+            .and_then(|name| name.to_str())
+            .expect("copy destination must have a UTF-8 file name")
+    ));
+    // Clean up a stale tmp dir left behind by an earlier interrupted copy.
+    let _ = std::fs::remove_dir_all(&tmp_dst);
+
+    let status = if cfg!(windows) {
         std::process::Command::new("robocopy.exe")
             .arg("/e")
             .arg(src)
-            .arg(dst)
+            .arg(&tmp_dst)
             .status()
-            .expect("Failed to execute robocopy command");
-    }
+            .expect("Failed to execute robocopy command")
+    } else {
+        std::process::Command::new("cp")
+            .arg("-rf")
+            .arg(src)
+            .arg(&tmp_dst)
+            .status()
+            .expect("Failed to execute cp command")
+    };
+
+    assert!(
+        copy_succeeded(cfg!(windows), status.code()),
+        "copying {} to {} failed with {status}",
+        src.display(),
+        tmp_dst.display(),
+    );
+
+    std::fs::rename(&tmp_dst, dst).expect("Failed to move completed copy into place");
 }
 
 fn extract_lib_names(out_dir: &Path, build_shared_libs: bool, target_os: &str) -> Vec<String> {
@@ -336,7 +382,8 @@ fn emit_system_lib_link_directives(lib_path: &Path, default_name: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolved_pcaudio_lib, resolved_sonic_lib};
+    use super::{copy_folder, copy_succeeded, resolved_pcaudio_lib, resolved_sonic_lib};
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::path::PathBuf;
 
     #[test]
@@ -449,6 +496,75 @@ mod tests {
         assert_eq!(
             resolved_pcaudio_lib(cache),
             Some(PathBuf::from("/usr/lib/x86_64-linux-gnu/libpcaudio.so"))
+        );
+    }
+
+    #[test]
+    fn unix_copy_succeeds_only_on_exit_code_zero() {
+        assert!(copy_succeeded(false, Some(0)));
+        assert!(!copy_succeeded(false, Some(1)));
+        assert!(!copy_succeeded(false, None)); // killed by a signal
+    }
+
+    #[test]
+    fn robocopy_copy_succeeds_below_the_failure_bit() {
+        assert!(copy_succeeded(true, Some(0)));
+        assert!(copy_succeeded(true, Some(1)));
+        assert!(copy_succeeded(true, Some(7)));
+        assert!(!copy_succeeded(true, Some(8)));
+        assert!(!copy_succeeded(true, None));
+    }
+
+    /// A fresh, unique path under the system temp dir for a test to use as
+    /// scratch space. Not created on disk.
+    fn scratch_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "espeak-rs-sys-test-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id(),
+        ))
+    }
+
+    #[test]
+    fn copy_folder_copies_files_into_a_fresh_destination() {
+        let src = scratch_path("copy-src");
+        let dst = scratch_path("copy-dst");
+        std::fs::create_dir_all(src.join("nested")).unwrap();
+        std::fs::write(src.join("nested").join("file.txt"), b"hello").unwrap();
+
+        copy_folder(&src, &dst);
+
+        assert_eq!(
+            std::fs::read(dst.join("nested").join("file.txt")).unwrap(),
+            b"hello"
+        );
+
+        std::fs::remove_dir_all(&src).unwrap();
+        std::fs::remove_dir_all(&dst).unwrap();
+    }
+
+    #[test]
+    fn copy_folder_never_leaves_a_destination_behind_when_the_source_is_missing() {
+        // Regression test for #42: create_dir_all(dst) used to run before
+        // the copy was attempted, so a copy that failed (here, because the
+        // source doesn't exist at all -- the exact state of a fresh clone
+        // before `git submodule update --init`) left an empty `dst` behind.
+        // Every later build reusing that OUT_DIR then saw `dst.exists()`
+        // and skipped copying forever, even after the source was fixed.
+        let src = scratch_path("missing-src");
+        let dst = scratch_path("poisoned-dst");
+        assert!(!src.exists());
+        assert!(!dst.exists());
+
+        let panicked = catch_unwind(AssertUnwindSafe(|| copy_folder(&src, &dst))).is_err();
+
+        assert!(
+            panicked,
+            "copy_folder should panic when the source is missing"
+        );
+        assert!(
+            !dst.exists(),
+            "a failed copy must not leave the destination behind"
         );
     }
 }
