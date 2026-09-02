@@ -45,7 +45,7 @@ const ESPEAKNG_DATA_DIR_NAME: &str = "espeak-ng-data";
 fn locate_espeak_ng_data_dir() -> Option<std::path::PathBuf> {
     let dir = std::env::var(PIPER_ESPEAKNG_DATA_DIRECTORY).ok()?;
     let candidate = std::path::PathBuf::from(dir).join(ESPEAKNG_DATA_DIR_NAME);
-    candidate.exists().then_some(candidate)
+    candidate.is_dir().then_some(candidate)
 }
 
 #[cfg(feature = "espeak-ng")]
@@ -161,21 +161,53 @@ mod espeak_ng_data_dir_tests {
     use std::sync::Mutex;
 
     // `locate_espeak_ng_data_dir` reads a process-global env var; serialize
-    // the tests that touch it so they can't observe each other's value.
+    // the tests that touch it so they can't observe each other's value, and
+    // restore whatever value (if any) preceded the test so a var inherited
+    // from the outer environment survives the test run.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-    fn with_env_var<T>(dir: &std::path::Path, f: impl FnOnce() -> T) -> T {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    struct EnvVarGuard<'a> {
+        _lock: std::sync::MutexGuard<'a, ()>,
+        original: Option<std::ffi::OsString>,
+    }
+
+    impl Drop for EnvVarGuard<'_> {
+        fn drop(&mut self) {
+            match self.original.take() {
+                Some(v) => unsafe { std::env::set_var(PIPER_ESPEAKNG_DATA_DIRECTORY, v) },
+                None => unsafe { std::env::remove_var(PIPER_ESPEAKNG_DATA_DIRECTORY) },
+            }
+        }
+    }
+
+    fn set_env_var(dir: &std::path::Path) -> EnvVarGuard<'static> {
+        let lock = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let original = std::env::var_os(PIPER_ESPEAKNG_DATA_DIRECTORY);
         unsafe { std::env::set_var(PIPER_ESPEAKNG_DATA_DIRECTORY, dir) };
-        let result = f();
+        EnvVarGuard {
+            _lock: lock,
+            original,
+        }
+    }
+
+    fn unset_env_var() -> EnvVarGuard<'static> {
+        let lock = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let original = std::env::var_os(PIPER_ESPEAKNG_DATA_DIRECTORY);
         unsafe { std::env::remove_var(PIPER_ESPEAKNG_DATA_DIRECTORY) };
-        result
+        EnvVarGuard {
+            _lock: lock,
+            original,
+        }
+    }
+
+    fn with_env_var<T>(dir: &std::path::Path, f: impl FnOnce() -> T) -> T {
+        let _guard = set_env_var(dir);
+        f()
     }
 
     #[test]
     fn returns_none_when_env_var_unset() {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
-        unsafe { std::env::remove_var(PIPER_ESPEAKNG_DATA_DIRECTORY) };
+        let _guard = unset_env_var();
         assert_eq!(locate_espeak_ng_data_dir(), None);
     }
 
@@ -183,6 +215,18 @@ mod espeak_ng_data_dir_tests {
     fn returns_none_when_directory_has_no_espeak_ng_data_subdir() {
         let tmp = std::env::temp_dir().join("piper-rs-test-no-data-29");
         std::fs::create_dir_all(&tmp).unwrap();
+
+        let result = with_env_var(&tmp, locate_espeak_ng_data_dir);
+
+        std::fs::remove_dir_all(&tmp).ok();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn returns_none_when_espeak_ng_data_subdir_is_a_regular_file() {
+        let tmp = std::env::temp_dir().join("piper-rs-test-file-not-dir-29");
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join(ESPEAKNG_DATA_DIR_NAME), b"not a directory").unwrap();
 
         let result = with_env_var(&tmp, locate_espeak_ng_data_dir);
 
