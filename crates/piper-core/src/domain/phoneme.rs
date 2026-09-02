@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use unicode_normalization::UnicodeNormalization;
 
 pub const BOS: char = '^';
 pub const EOS: char = '$';
@@ -66,7 +67,7 @@ pub fn encode_phonemes(map: &PhonemeIdMap, phonemes: &str) -> PhonemeEncoding {
 
     let mut ids = Vec::with_capacity((phonemes.len() + 1) * 2);
     ids.extend_from_slice(&bos_ids);
-    for ch in phonemes.chars() {
+    for ch in phonemes.nfd() {
         match map.get(&ch) {
             Some(phoneme_ids) => {
                 ids.extend_from_slice(phoneme_ids);
@@ -145,5 +146,26 @@ mod tests {
                 PhonemizationWarning::MissingSentinel { sentinel: Sentinel::Eos },
             ]
         );
+    }
+
+    #[test]
+    fn normalizes_composed_phonemes_to_nfd_before_lookup() {
+        // The model is trained on NFD (decomposed) Unicode, e.g. 'c' followed
+        // by a combining cedilla (U+0327), but a phonemizer backend may emit
+        // the composed form 'ç' (U+00E7) as a single codepoint. Without NFD
+        // normalization that composed codepoint isn't in the map and would
+        // be silently dropped (regression: legacy issue #12).
+        let m = map([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('c', vec![10]),
+            ('\u{0327}', vec![11]),
+        ]);
+
+        let encoding = encode_phonemes(&m, "\u{00E7}");
+
+        assert_eq!(encoding.ids, PhonemeIdSequence(vec![1, 10, 0, 11, 0, 2]));
+        assert_eq!(encoding.warnings, vec![]);
     }
 }
