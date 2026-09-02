@@ -44,16 +44,26 @@ jobs:
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
   lint:
-    name: clippy (dengjen-piper-core)
+    name: clippy (piper-core and Phase 2 adapters)
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang, espeak-ng, and alsa
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
+          submodules: recursive
           persist-credentials: false
-      - name: cargo clippy (dengjen-piper-core, deny warnings)
-        run: cargo clippy -p dengjen-piper-core -- -D warnings
+      - name: cargo clippy (piper-core and Phase 2 adapters, deny warnings)
+        run: |
+          cargo clippy -p dengjen-piper-core -- -D warnings
+          cargo clippy -p dengjen-stub-adapter -- -D warnings
+          cargo clippy -p dengjen-fs-voice-repo -- -D warnings
+          cargo clippy -p dengjen-ort-adapter -- -D warnings
+          cargo clippy -p dengjen-espeak-rs-adapter -- -D warnings
 
   sonarcloud:
     name: SonarCloud scan
