@@ -136,37 +136,79 @@ fn macos_link_search_path() -> Option<String> {
     None
 }
 
-/// Reads CMake's own pcaudio detection result out of its cache, rather than
-/// re-implementing `find_library`/`find_path` here. On Linux, CMake enables
-/// `USE_LIBPCAUDIO` only when the system has both libpcaudio and its headers
-/// (see espeak-ng/cmake/deps.cmake), so espeak-ng's static lib references
-/// pcaudio symbols only in that case; the Rust linker needs to match.
-fn cmake_cache_has_pcaudio_enabled(cache_contents: &str) -> bool {
-    cache_contents
-        .lines()
-        .any(|line| line.trim() == "USE_LIBPCAUDIO:BOOL=ON")
+/// Mirrors espeak-ng's own `HAVE_LIBPCAUDIO AND USE_LIBPCAUDIO` gate
+/// (src/libespeak-ng/CMakeLists.txt) by reading CMake's cache instead of
+/// re-running its `find_library`/`find_path` detection. Returns the absolute
+/// path CMake resolved for libpcaudio, so callers can point the Rust linker
+/// at the exact location and library kind CMake linked against instead of
+/// guessing a bare `-lpcaudio` will resolve in the default search path.
+/// Requires PCAUDIO_LIB/PCAUDIO_INC to actually be resolved (not
+/// `*-NOTFOUND`) in addition to `USE_LIBPCAUDIO:BOOL=ON`, since that flag
+/// alone can be stale (CACHE'd from an earlier configure where the library
+/// was present) while the resolved paths were invalidated since.
+fn resolved_pcaudio_lib(cache_contents: &str) -> Option<PathBuf> {
+    let mut use_libpcaudio = false;
+    let mut pcaudio_lib = None;
+    let mut pcaudio_inc = None;
+
+    for line in cache_contents.lines() {
+        let line = line.trim();
+        if let Some(value) = line.strip_prefix("USE_LIBPCAUDIO:BOOL=") {
+            use_libpcaudio = value == "ON";
+        } else if let Some(value) = line.strip_prefix("PCAUDIO_LIB:FILEPATH=") {
+            pcaudio_lib = Some(value);
+        } else if let Some(value) = line.strip_prefix("PCAUDIO_INC:PATH=") {
+            pcaudio_inc = Some(value);
+        }
+    }
+
+    let is_resolved = |value: Option<&str>| matches!(value, Some(v) if !v.is_empty() && !v.ends_with("-NOTFOUND"));
+
+    if use_libpcaudio && is_resolved(pcaudio_lib) && is_resolved(pcaudio_inc) {
+        pcaudio_lib.map(PathBuf::from)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::cmake_cache_has_pcaudio_enabled;
+    use super::resolved_pcaudio_lib;
+    use std::path::PathBuf;
 
     #[test]
-    fn returns_true_when_cache_enables_pcaudio() {
-        let cache = "PCAUDIO_LIB:FILEPATH=/usr/lib/libpcaudio.so\nUSE_LIBPCAUDIO:BOOL=ON\n";
-        assert!(cmake_cache_has_pcaudio_enabled(cache));
+    fn resolves_lib_path_when_cmake_enabled_and_found_pcaudio() {
+        let cache = "PCAUDIO_LIB:FILEPATH=/usr/lib/x86_64-linux-gnu/libpcaudio.so\n\
+                      PCAUDIO_INC:PATH=/usr/include\n\
+                      USE_LIBPCAUDIO:BOOL=ON\n";
+        assert_eq!(
+            resolved_pcaudio_lib(cache),
+            Some(PathBuf::from("/usr/lib/x86_64-linux-gnu/libpcaudio.so"))
+        );
     }
 
     #[test]
-    fn returns_false_when_cache_disables_pcaudio() {
-        let cache = "PCAUDIO_LIB:FILEPATH=PCAUDIO_LIB-NOTFOUND\nUSE_LIBPCAUDIO:BOOL=OFF\n";
-        assert!(!cmake_cache_has_pcaudio_enabled(cache));
+    fn returns_none_when_use_libpcaudio_is_off() {
+        let cache = "PCAUDIO_LIB:FILEPATH=PCAUDIO_LIB-NOTFOUND\n\
+                      PCAUDIO_INC:PATH=PCAUDIO_INC-NOTFOUND\n\
+                      USE_LIBPCAUDIO:BOOL=OFF\n";
+        assert_eq!(resolved_pcaudio_lib(cache), None);
     }
 
     #[test]
-    fn returns_false_when_cache_missing_key() {
+    fn returns_none_when_lib_path_is_notfound_despite_use_libpcaudio_on() {
+        // A stale USE_LIBPCAUDIO=ON cached from an earlier configure, while
+        // PCAUDIO_LIB was never (re-)resolved this run.
+        let cache = "PCAUDIO_LIB:FILEPATH=PCAUDIO_LIB-NOTFOUND\n\
+                      PCAUDIO_INC:PATH=/usr/include\n\
+                      USE_LIBPCAUDIO:BOOL=ON\n";
+        assert_eq!(resolved_pcaudio_lib(cache), None);
+    }
+
+    #[test]
+    fn returns_none_when_cache_missing_keys() {
         let cache = "CMAKE_INSTALL_PREFIX:PATH=/out\n";
-        assert!(!cmake_cache_has_pcaudio_enabled(cache));
+        assert_eq!(resolved_pcaudio_lib(cache), None);
     }
 }
 
@@ -322,15 +364,28 @@ fn main() {
     if target_os == "linux" {
         println!("cargo:rustc-link-lib=dylib=stdc++");
         // CMake links espeak-ng against pcaudio only when it found the system
-        // lib and headers (see USE_LIBPCAUDIO); mirror that decision here
-        // instead of guessing, so we don't fail to link on hosts that lack
-        // libpcaudio-dev.
+        // lib and headers (see USE_LIBPCAUDIO); mirror that decision here,
+        // pointing the linker at the exact path CMake resolved, instead of
+        // guessing a bare `-lpcaudio` will resolve in the default search path.
         let cmake_cache = out_dir.join("build").join("CMakeCache.txt");
-        if std::fs::read_to_string(&cmake_cache)
-            .map(|contents| cmake_cache_has_pcaudio_enabled(&contents))
-            .unwrap_or(false)
+        if let Some(pcaudio_lib) = std::fs::read_to_string(&cmake_cache)
+            .ok()
+            .and_then(|contents| resolved_pcaudio_lib(&contents))
         {
-            println!("cargo:rustc-link-lib=dylib=pcaudio");
+            if let Some(dir) = pcaudio_lib.parent() {
+                println!("cargo:rustc-link-search=native={}", dir.display());
+            }
+            let kind = if pcaudio_lib.extension().and_then(|ext| ext.to_str()) == Some("a") {
+                "static"
+            } else {
+                "dylib"
+            };
+            let name = pcaudio_lib
+                .file_stem()
+                .and_then(|stem| stem.to_str())
+                .and_then(|stem| stem.strip_prefix("lib"))
+                .unwrap_or("pcaudio");
+            println!("cargo:rustc-link-lib={kind}={name}");
         }
     }
 
