@@ -57,6 +57,13 @@ fn phonemize_espeak_ng(voice: &str, text: &str) -> PiperResult<String> {
         .map_err(|e| PiperError::PhonemizationError(format!("{}", e)))
 }
 
+/// Owns a loaded ONNX Runtime session for one voice model.
+///
+/// There is no separate "unload" call: `Piper` releases the underlying
+/// ONNX Runtime session (and the native memory backing it) as soon as it is
+/// dropped, like any other Rust value. To unload a model on demand — e.g. to
+/// swap voices in a long-running app — hold it behind an `Option<Piper>` (or
+/// similar) and assign `None` to it; see `examples/unload_model.rs`.
 pub struct Piper {
     config: ModelConfig,
     session: Session,
