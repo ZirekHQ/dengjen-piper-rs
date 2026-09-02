@@ -6,7 +6,8 @@ use std::path::Path;
 
 use ort::session::Session;
 
-pub use model::ModelConfig;
+pub use model::{AudioConfig, ESpeakConfig, InferenceConfig, ModelConfig};
+pub use model::{phonemes_to_ids, BOS, EOS, PAD};
 use model::infer;
 
 #[derive(Debug)]
