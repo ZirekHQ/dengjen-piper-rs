@@ -87,15 +87,17 @@ mod tests {
     struct FakeEngine {
         infer_result: Result<SynthesizedAudio, InferenceError>,
         received_params: Option<ResolvedInferenceParams>,
+        received_ids: Option<PhonemeIdSequence>,
     }
 
     impl InferenceEngine for FakeEngine {
         fn infer(
             &mut self,
-            _ids: &PhonemeIdSequence,
+            ids: &PhonemeIdSequence,
             params: ResolvedInferenceParams,
         ) -> Result<SynthesizedAudio, InferenceError> {
             self.received_params = Some(params);
+            self.received_ids = Some(ids.clone());
             self.infer_result.clone()
         }
 
@@ -129,7 +131,7 @@ mod tests {
     #[test]
     fn returns_voice_not_found_for_an_unregistered_voice() {
         let phonemizer = FakePhonemizer { result: Ok(vec![]) };
-        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None };
+        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None, received_ids: None };
         let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
         let registry = VoiceRegistry::new();
 
@@ -141,7 +143,7 @@ mod tests {
     #[test]
     fn propagates_a_phonemization_error() {
         let phonemizer = FakePhonemizer { result: Err(PhonemizationError::Timeout) };
-        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None };
+        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None, received_ids: None };
         let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
         let registry = registry_with_voice(full_map());
 
@@ -156,6 +158,7 @@ mod tests {
         let mut engine = FakeEngine {
             infer_result: Err(InferenceError::RuntimeFailure("boom".to_string())),
             received_params: None,
+            received_ids: None,
         };
         let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
         let registry = registry_with_voice(full_map());
@@ -174,17 +177,28 @@ mod tests {
         let mut engine = FakeEngine {
             infer_result: Ok(SynthesizedAudio { samples: vec![0.5], sample_rate: 22050 }),
             received_params: None,
+            received_ids: None,
         };
-        let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
         // 'b' is deliberately absent from the map.
         let registry = registry_with_voice(full_map());
 
-        let outcome = use_case.execute(&registry, "v1", "ab", InferenceOverrides::default()).unwrap();
+        let outcome = {
+            let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
+            use_case.execute(&registry, "v1", "ab", InferenceOverrides::default()).unwrap()
+        };
 
         assert_eq!(outcome.audio.samples, vec![0.5]);
         assert_eq!(
             outcome.warnings,
             vec![PhonemizationWarning::UnmappedPhoneme { phoneme: 'b' }]
+        );
+        // Proves the dropped phoneme's absence isn't just asserted at the
+        // domain layer (Task 1's drops_unmapped_phonemes_and_warns) but
+        // actually reaches the engine this way: 'a' -> [10], 'b' dropped
+        // entirely (no ids, no trailing PAD for it), wrapped in BOS/EOS.
+        assert_eq!(
+            engine.received_ids,
+            Some(PhonemeIdSequence(vec![1, 10, 0, 2]))
         );
     }
 
@@ -194,6 +208,7 @@ mod tests {
         let mut engine = FakeEngine {
             infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }),
             received_params: None,
+            received_ids: None,
         };
         let overrides = InferenceOverrides { length_scale: Some(1.5), ..Default::default() };
         let registry = registry_with_voice(full_map());
