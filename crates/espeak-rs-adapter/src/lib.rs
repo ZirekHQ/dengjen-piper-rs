@@ -95,3 +95,12 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
+#[cfg(test)]
+mod contract {
+    use super::*;
+
+    piper_core::phonemizer_contract_tests!(
+        || Box::new(EspeakRsPhonemizer::default()) as Box<dyn Phonemizer>
+    );
+}
