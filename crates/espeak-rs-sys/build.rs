@@ -122,19 +122,29 @@ const ESPEAK_NG_DATA_DIR_NAME: &str = "espeak-ng-data";
 /// distributable, by copying this folder alongside the binary) with no
 /// `PIPER_ESPEAKNG_DATA_DIRECTORY` needed. See issue #10.
 ///
-/// No-ops when `src` doesn't exist: when cross-compiling without a
-/// `-DNativeBuild=...` pointing at a host build of espeak-ng, upstream's
-/// CMakeLists.txt never `include()`s `cmake/data.cmake` at all, so no data
-/// is installed to `out_dir/share` in the first place (see the top-level
-/// `CMAKE_CROSSCOMPILING` branch) -- there is nothing to copy, not a failure.
+/// No-ops when `src` doesn't exist: espeak-ng's own CMakeLists.txt gates its
+/// entire `include(cmake/data.cmake)` (which is what installs this
+/// directory) behind `COMPILE_INTONATIONS` for both native and cross
+/// builds -- so no data is installed to `out_dir/share` at all when
+/// cross-compiling without a `-DNativeBuild=...` pointing at a host build
+/// (see the top-level `CMAKE_CROSSCOMPILING` branch), *or* when this crate's
+/// own `compile-espeak-intonations` feature is disabled, natively too.
+/// Either way there is nothing to copy, not a failure.
+///
+/// Replaces any pre-existing `dst` outright rather than skipping when `src`
+/// is available: `target_dir` (unlike `OUT_DIR`) persists across many
+/// rebuilds, so a stale copy from a previous espeak-ng version or
+/// dictionary change must not be left behind to quietly go out of sync with
+/// the library just linked. See PR #46.
 fn copy_espeak_ng_data_next_to_binary(out_dir: &Path, target_dir: &Path) {
-    let dst = target_dir.join(ESPEAK_NG_DATA_DIR_NAME);
-    if dst.exists() {
-        return;
-    }
     let src = out_dir.join("share").join(ESPEAK_NG_DATA_DIR_NAME);
     if !src.exists() {
         return;
+    }
+    let dst = target_dir.join(ESPEAK_NG_DATA_DIR_NAME);
+    if dst.exists() {
+        std::fs::remove_dir_all(&dst)
+            .expect("Failed to remove stale espeak-ng-data copy before refreshing it");
     }
     copy_folder(&src, &dst);
 }
@@ -673,11 +683,11 @@ mod tests {
     }
 
     #[test]
-    fn skips_copying_espeak_ng_data_when_already_present_next_to_the_binary() {
-        // A previously-completed copy must not be re-attempted -- and must
-        // not panic -- even if OUT_DIR's copy is no longer around (e.g. a
-        // later `cargo clean` without deleting `target_dir`), mirroring the
-        // existing espeak-ng source copy's dst.exists() skip.
+    fn leaves_an_existing_copy_alone_when_out_dir_has_no_fresh_source() {
+        // When OUT_DIR's copy is no longer around (e.g. a later `cargo
+        // clean` without deleting `target_dir`), a prior copy already next
+        // to the binary must be left as-is rather than deleted with nothing
+        // to replace it with.
         let out_dir = scratch_path("espeak-data-missing-out");
         let target_dir = scratch_path("espeak-data-existing-target");
         let existing_dst = target_dir.join("espeak-ng-data");
@@ -712,6 +722,40 @@ mod tests {
         assert!(!target_dir.join("espeak-ng-data").exists());
 
         std::fs::remove_dir_all(&out_dir).unwrap();
+    }
+
+    #[test]
+    fn refreshes_a_stale_espeak_ng_data_copy_when_a_fresh_source_is_available() {
+        // Regression: target_dir persists across many OUT_DIR regenerations,
+        // so a previous build's copy must not be kept forever once a fresh
+        // source is available (e.g. after an espeak-ng version bump or
+        // dictionary change) -- otherwise the copy next to the binary
+        // silently goes stale relative to the library just linked. See PR
+        // #46 review.
+        let out_dir = scratch_path("espeak-data-refresh-out");
+        let target_dir = scratch_path("espeak-data-refresh-target");
+        let data_src = out_dir.join("share").join("espeak-ng-data");
+        std::fs::create_dir_all(&data_src).unwrap();
+        std::fs::write(data_src.join("phontab"), b"fresh-contents").unwrap();
+
+        let existing_dst = target_dir.join("espeak-ng-data");
+        std::fs::create_dir_all(&existing_dst).unwrap();
+        std::fs::write(existing_dst.join("phontab"), b"stale-contents").unwrap();
+        std::fs::write(existing_dst.join("only-in-stale-copy"), b"leftover").unwrap();
+
+        copy_espeak_ng_data_next_to_binary(&out_dir, &target_dir);
+
+        assert_eq!(
+            std::fs::read(existing_dst.join("phontab")).unwrap(),
+            b"fresh-contents"
+        );
+        assert!(
+            !existing_dst.join("only-in-stale-copy").exists(),
+            "stale files from the old copy must not survive a refresh"
+        );
+
+        std::fs::remove_dir_all(&out_dir).unwrap();
+        std::fs::remove_dir_all(&target_dir).unwrap();
     }
 }
 

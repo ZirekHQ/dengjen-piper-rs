@@ -8,7 +8,7 @@ deleted or the crate is rebuilt with a different hash. Copying only the
 compiled binary out of `target/` and discarding the rest (e.g. `cargo build
 --release` followed by `rm -rf target`) breaks it at runtime with:
 
-```
+```text
 Failed to initialize eSpeak-ng. Try setting `PIPER_ESPEAKNG_DATA_DIRECTORY`
 to the directory that contains the `espeak-ng-data` directory.
 ```
