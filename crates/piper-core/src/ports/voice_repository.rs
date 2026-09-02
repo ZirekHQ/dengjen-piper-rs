@@ -42,7 +42,10 @@ mod tests {
     fn trait_object_returns_not_found_for_an_unknown_voice() {
         let repo: &dyn VoiceRepository = &FixedVoiceRepository;
         let result = repo.load("unknown-voice");
-        assert_eq!(result, Err(VoiceLoadError::NotFound("unknown-voice".to_string())));
+        assert_eq!(
+            result,
+            Err(VoiceLoadError::NotFound("unknown-voice".to_string()))
+        );
     }
 
     #[test]

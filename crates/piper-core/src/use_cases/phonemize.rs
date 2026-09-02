@@ -69,7 +69,11 @@ mod tests {
     }
 
     impl Phonemizer for FakePhonemizer {
-        fn phonemize(&self, _text: &str, _voice: &str) -> Result<Vec<Sentence>, PhonemizationError> {
+        fn phonemize(
+            &self,
+            _text: &str,
+            _voice: &str,
+        ) -> Result<Vec<Sentence>, PhonemizationError> {
             self.result.clone()
         }
     }
@@ -95,23 +99,35 @@ mod tests {
     #[test]
     fn returns_voice_not_found_for_an_unregistered_voice() {
         let phonemizer = FakePhonemizer { result: Ok(vec![]) };
-        let use_case = Phonemize { phonemizer: &phonemizer };
+        let use_case = Phonemize {
+            phonemizer: &phonemizer,
+        };
         let registry = VoiceRegistry::new();
 
         let result = use_case.execute(&registry, "missing", "hello");
 
-        assert_eq!(result, Err(PhonemizeError::VoiceNotFound("missing".to_string())));
+        assert_eq!(
+            result,
+            Err(PhonemizeError::VoiceNotFound("missing".to_string()))
+        );
     }
 
     #[test]
     fn propagates_a_phonemization_error() {
-        let phonemizer = FakePhonemizer { result: Err(PhonemizationError::QueueFull) };
-        let use_case = Phonemize { phonemizer: &phonemizer };
+        let phonemizer = FakePhonemizer {
+            result: Err(PhonemizationError::QueueFull),
+        };
+        let use_case = Phonemize {
+            phonemizer: &phonemizer,
+        };
         let registry = registry_with_voice("v1");
 
         let result = use_case.execute(&registry, "v1", "hello");
 
-        assert_eq!(result, Err(PhonemizeError::Phonemization(PhonemizationError::QueueFull)));
+        assert_eq!(
+            result,
+            Err(PhonemizeError::Phonemization(PhonemizationError::QueueFull))
+        );
     }
 
     #[test]
@@ -119,7 +135,9 @@ mod tests {
         let phonemizer = FakePhonemizer {
             result: Ok(vec![Sentence("hɛloʊ.".to_string())]),
         };
-        let use_case = Phonemize { phonemizer: &phonemizer };
+        let use_case = Phonemize {
+            phonemizer: &phonemizer,
+        };
         let registry = registry_with_voice("v1");
 
         let result = use_case.execute(&registry, "v1", "hello").unwrap();

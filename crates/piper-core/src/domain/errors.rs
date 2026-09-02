@@ -106,21 +106,34 @@ mod tests {
     #[test]
     fn synthesize_error_converts_from_phonemization_error() {
         let err: SynthesizeError = PhonemizationError::QueueFull.into();
-        assert_eq!(err, SynthesizeError::Phonemization(PhonemizationError::QueueFull));
+        assert_eq!(
+            err,
+            SynthesizeError::Phonemization(PhonemizationError::QueueFull)
+        );
     }
 
     #[test]
     fn synthesize_error_converts_from_inference_error() {
-        let err: SynthesizeError = InferenceError::ArityMismatch { expected: 4, actual: 3 }.into();
+        let err: SynthesizeError = InferenceError::ArityMismatch {
+            expected: 4,
+            actual: 3,
+        }
+        .into();
         assert_eq!(
             err,
-            SynthesizeError::Inference(InferenceError::ArityMismatch { expected: 4, actual: 3 })
+            SynthesizeError::Inference(InferenceError::ArityMismatch {
+                expected: 4,
+                actual: 3
+            })
         );
     }
 
     #[test]
     fn arity_mismatch_display_names_both_counts() {
-        let err = InferenceError::ArityMismatch { expected: 4, actual: 3 };
+        let err = InferenceError::ArityMismatch {
+            expected: 4,
+            actual: 3,
+        };
         assert_eq!(
             err.to_string(),
             "model expects 4 input tensors but voice config implies 3"

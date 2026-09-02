@@ -8,7 +8,10 @@ macro_rules! voice_repository_contract_tests {
             let repository = $make();
             let result = repository.load("definitely-not-a-real-voice-id-xyz");
             assert!(
-                matches!(result, Err($crate::domain::errors::VoiceLoadError::NotFound(_))),
+                matches!(
+                    result,
+                    Err($crate::domain::errors::VoiceLoadError::NotFound(_))
+                ),
                 "expected NotFound, got {result:?}"
             );
         }
@@ -16,7 +19,9 @@ macro_rules! voice_repository_contract_tests {
         #[test]
         fn loading_a_known_voice_id_returns_a_voice_with_a_matching_id() {
             let repository = $make();
-            let voice = repository.load($known_voice_id).expect("known voice should load");
+            let voice = repository
+                .load($known_voice_id)
+                .expect("known voice should load");
             assert_eq!(voice.voice_id, $known_voice_id);
         }
     };

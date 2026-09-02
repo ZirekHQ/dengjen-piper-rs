@@ -29,7 +29,10 @@ impl Voice {
     /// `InferenceDefaults`, individually falling back to the default for
     /// each unset field (R8), defaulting an unset speaker id to `0` (R9),
     /// and omitting the speaker id entirely for single-speaker voices (R7).
-    pub fn resolve_inference_params(&self, overrides: InferenceOverrides) -> ResolvedInferenceParams {
+    pub fn resolve_inference_params(
+        &self,
+        overrides: InferenceOverrides,
+    ) -> ResolvedInferenceParams {
         let defaults = &self.inference_defaults;
         ResolvedInferenceParams {
             noise_scale: overrides.noise_scale.unwrap_or(defaults.noise_scale),

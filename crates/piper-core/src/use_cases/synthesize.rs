@@ -1,7 +1,7 @@
 use crate::domain::audio::SynthesizedAudio;
 use crate::domain::errors::{SynthesizeError, VoiceLoadError};
 use crate::domain::inference::InferenceOverrides;
-use crate::domain::phoneme::{encode_phonemes, PhonemizationWarning};
+use crate::domain::phoneme::{PhonemizationWarning, encode_phonemes};
 use crate::ports::inference_engine::InferenceEngine;
 use crate::ports::phonemizer::Phonemizer;
 use crate::registry::VoiceRegistry;
@@ -53,15 +53,24 @@ impl Synthesize<'_> {
     ) -> Result<SynthesizeOutcome, SynthesizeError> {
         let voice = registry.lookup(voice_id)?;
 
-        let phonemize = Phonemize { phonemizer: self.phonemizer };
+        let phonemize = Phonemize {
+            phonemizer: self.phonemizer,
+        };
         let sentences = phonemize.execute(registry, voice_id, text)?;
-        let phonemes: String = sentences.into_iter().map(|s| s.0).collect::<Vec<_>>().join(" ");
+        let phonemes: String = sentences
+            .into_iter()
+            .map(|s| s.0)
+            .collect::<Vec<_>>()
+            .join(" ");
 
         let encoding = encode_phonemes(&voice.phoneme_id_map, &phonemes);
         let params = voice.resolve_inference_params(overrides);
         let audio = self.engine.infer(&encoding.ids, params)?;
 
-        Ok(SynthesizeOutcome { audio, warnings: encoding.warnings })
+        Ok(SynthesizeOutcome {
+            audio,
+            warnings: encoding.warnings,
+        })
     }
 }
 
@@ -70,7 +79,7 @@ mod tests {
     use super::*;
     use crate::domain::errors::{InferenceError, PhonemizationError};
     use crate::domain::inference::ResolvedInferenceParams;
-    use crate::domain::phoneme::{PhonemeIdMap, PhonemeIdSequence, BOS, EOS, PAD};
+    use crate::domain::phoneme::{BOS, EOS, PAD, PhonemeIdMap, PhonemeIdSequence};
     use crate::domain::voice::{AudioConfig, InferenceDefaults, SpeakerMap, Voice};
     use crate::ports::phonemizer::Sentence;
 
@@ -79,7 +88,11 @@ mod tests {
     }
 
     impl Phonemizer for FakePhonemizer {
-        fn phonemize(&self, _text: &str, _voice: &str) -> Result<Vec<Sentence>, PhonemizationError> {
+        fn phonemize(
+            &self,
+            _text: &str,
+            _voice: &str,
+        ) -> Result<Vec<Sentence>, PhonemizationError> {
             self.result.clone()
         }
     }
@@ -125,57 +138,102 @@ mod tests {
     }
 
     fn full_map() -> PhonemeIdMap {
-        PhonemeIdMap::from([(BOS, vec![1]), (PAD, vec![0]), (EOS, vec![2]), ('a', vec![10])])
+        PhonemeIdMap::from([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10]),
+        ])
     }
 
     #[test]
     fn returns_voice_not_found_for_an_unregistered_voice() {
         let phonemizer = FakePhonemizer { result: Ok(vec![]) };
-        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None, received_ids: None };
-        let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
+        let mut engine = FakeEngine {
+            infer_result: Ok(SynthesizedAudio {
+                samples: vec![],
+                sample_rate: 22050,
+            }),
+            received_params: None,
+            received_ids: None,
+        };
+        let mut use_case = Synthesize {
+            phonemizer: &phonemizer,
+            engine: &mut engine,
+        };
         let registry = VoiceRegistry::new();
 
         let result = use_case.execute(&registry, "missing", "a", InferenceOverrides::default());
 
-        assert_eq!(result, Err(SynthesizeError::VoiceNotFound("missing".to_string())));
+        assert_eq!(
+            result,
+            Err(SynthesizeError::VoiceNotFound("missing".to_string()))
+        );
     }
 
     #[test]
     fn propagates_a_phonemization_error() {
-        let phonemizer = FakePhonemizer { result: Err(PhonemizationError::Timeout) };
-        let mut engine = FakeEngine { infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }), received_params: None, received_ids: None };
-        let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
-        let registry = registry_with_voice(full_map());
-
-        let result = use_case.execute(&registry, "v1", "a", InferenceOverrides::default());
-
-        assert_eq!(result, Err(SynthesizeError::Phonemization(PhonemizationError::Timeout)));
-    }
-
-    #[test]
-    fn propagates_an_inference_error() {
-        let phonemizer = FakePhonemizer { result: Ok(vec![Sentence("a".to_string())]) };
+        let phonemizer = FakePhonemizer {
+            result: Err(PhonemizationError::Timeout),
+        };
         let mut engine = FakeEngine {
-            infer_result: Err(InferenceError::RuntimeFailure("boom".to_string())),
+            infer_result: Ok(SynthesizedAudio {
+                samples: vec![],
+                sample_rate: 22050,
+            }),
             received_params: None,
             received_ids: None,
         };
-        let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
+        let mut use_case = Synthesize {
+            phonemizer: &phonemizer,
+            engine: &mut engine,
+        };
         let registry = registry_with_voice(full_map());
 
         let result = use_case.execute(&registry, "v1", "a", InferenceOverrides::default());
 
         assert_eq!(
             result,
-            Err(SynthesizeError::Inference(InferenceError::RuntimeFailure("boom".to_string())))
+            Err(SynthesizeError::Phonemization(PhonemizationError::Timeout))
+        );
+    }
+
+    #[test]
+    fn propagates_an_inference_error() {
+        let phonemizer = FakePhonemizer {
+            result: Ok(vec![Sentence("a".to_string())]),
+        };
+        let mut engine = FakeEngine {
+            infer_result: Err(InferenceError::RuntimeFailure("boom".to_string())),
+            received_params: None,
+            received_ids: None,
+        };
+        let mut use_case = Synthesize {
+            phonemizer: &phonemizer,
+            engine: &mut engine,
+        };
+        let registry = registry_with_voice(full_map());
+
+        let result = use_case.execute(&registry, "v1", "a", InferenceOverrides::default());
+
+        assert_eq!(
+            result,
+            Err(SynthesizeError::Inference(InferenceError::RuntimeFailure(
+                "boom".to_string()
+            )))
         );
     }
 
     #[test]
     fn returns_audio_and_a_warning_for_an_unmapped_phoneme_instead_of_failing() {
-        let phonemizer = FakePhonemizer { result: Ok(vec![Sentence("ab".to_string())]) };
+        let phonemizer = FakePhonemizer {
+            result: Ok(vec![Sentence("ab".to_string())]),
+        };
         let mut engine = FakeEngine {
-            infer_result: Ok(SynthesizedAudio { samples: vec![0.5], sample_rate: 22050 }),
+            infer_result: Ok(SynthesizedAudio {
+                samples: vec![0.5],
+                sample_rate: 22050,
+            }),
             received_params: None,
             received_ids: None,
         };
@@ -183,8 +241,13 @@ mod tests {
         let registry = registry_with_voice(full_map());
 
         let outcome = {
-            let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
-            use_case.execute(&registry, "v1", "ab", InferenceOverrides::default()).unwrap()
+            let mut use_case = Synthesize {
+                phonemizer: &phonemizer,
+                engine: &mut engine,
+            };
+            use_case
+                .execute(&registry, "v1", "ab", InferenceOverrides::default())
+                .unwrap()
         };
 
         assert_eq!(outcome.audio.samples, vec![0.5]);
@@ -204,21 +267,34 @@ mod tests {
 
     #[test]
     fn resolves_inference_params_against_voice_defaults_before_calling_the_engine() {
-        let phonemizer = FakePhonemizer { result: Ok(vec![Sentence("a".to_string())]) };
+        let phonemizer = FakePhonemizer {
+            result: Ok(vec![Sentence("a".to_string())]),
+        };
         let mut engine = FakeEngine {
-            infer_result: Ok(SynthesizedAudio { samples: vec![], sample_rate: 22050 }),
+            infer_result: Ok(SynthesizedAudio {
+                samples: vec![],
+                sample_rate: 22050,
+            }),
             received_params: None,
             received_ids: None,
         };
-        let overrides = InferenceOverrides { length_scale: Some(1.5), ..Default::default() };
+        let overrides = InferenceOverrides {
+            length_scale: Some(1.5),
+            ..Default::default()
+        };
         let registry = registry_with_voice(full_map());
 
         {
-            let mut use_case = Synthesize { phonemizer: &phonemizer, engine: &mut engine };
+            let mut use_case = Synthesize {
+                phonemizer: &phonemizer,
+                engine: &mut engine,
+            };
             use_case.execute(&registry, "v1", "a", overrides).unwrap();
         }
 
-        let params = engine.received_params.expect("infer should have been called");
+        let params = engine
+            .received_params
+            .expect("infer should have been called");
         assert_eq!(params.length_scale, 1.5);
         assert_eq!(params.noise_scale, 0.667);
     }

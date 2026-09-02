@@ -12,7 +12,11 @@ pub struct LoadVoice<'a> {
 }
 
 impl LoadVoice<'_> {
-    pub fn execute(&self, voice_id: &str, registry: &mut VoiceRegistry) -> Result<(), VoiceLoadError> {
+    pub fn execute(
+        &self,
+        voice_id: &str,
+        registry: &mut VoiceRegistry,
+    ) -> Result<(), VoiceLoadError> {
         let voice = self.repository.load(voice_id)?;
         self.engine
             .validate_arity(voice.num_speakers > 1)
@@ -75,9 +79,16 @@ mod tests {
 
     #[test]
     fn propagates_a_not_found_error_from_the_repository() {
-        let repository = FakeRepository { voice: Err(VoiceLoadError::NotFound("v1".to_string())) };
-        let engine = FakeEngine { arity_result: Ok(()) };
-        let use_case = LoadVoice { repository: &repository, engine: &engine };
+        let repository = FakeRepository {
+            voice: Err(VoiceLoadError::NotFound("v1".to_string())),
+        };
+        let engine = FakeEngine {
+            arity_result: Ok(()),
+        };
+        let use_case = LoadVoice {
+            repository: &repository,
+            engine: &engine,
+        };
         let mut registry = VoiceRegistry::new();
 
         let result = use_case.execute("v1", &mut registry);
@@ -89,9 +100,15 @@ mod tests {
     fn surfaces_an_arity_mismatch_as_a_model_load_failure() {
         let repository = FakeRepository { voice: Ok(voice()) };
         let engine = FakeEngine {
-            arity_result: Err(InferenceError::ArityMismatch { expected: 4, actual: 3 }),
+            arity_result: Err(InferenceError::ArityMismatch {
+                expected: 4,
+                actual: 3,
+            }),
         };
-        let use_case = LoadVoice { repository: &repository, engine: &engine };
+        let use_case = LoadVoice {
+            repository: &repository,
+            engine: &engine,
+        };
         let mut registry = VoiceRegistry::new();
 
         let result = use_case.execute("v1", &mut registry);
@@ -102,8 +119,13 @@ mod tests {
     #[test]
     fn registers_the_voice_when_loading_and_validation_succeed() {
         let repository = FakeRepository { voice: Ok(voice()) };
-        let engine = FakeEngine { arity_result: Ok(()) };
-        let use_case = LoadVoice { repository: &repository, engine: &engine };
+        let engine = FakeEngine {
+            arity_result: Ok(()),
+        };
+        let use_case = LoadVoice {
+            repository: &repository,
+            engine: &engine,
+        };
         let mut registry = VoiceRegistry::new();
 
         use_case.execute("v1", &mut registry).unwrap();

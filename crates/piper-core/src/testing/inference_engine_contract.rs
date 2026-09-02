@@ -43,7 +43,10 @@ mod tests {
             _ids: &PhonemeIdSequence,
             _params: ResolvedInferenceParams,
         ) -> Result<SynthesizedAudio, InferenceError> {
-            Ok(SynthesizedAudio { samples: vec![0.0], sample_rate: 16000 })
+            Ok(SynthesizedAudio {
+                samples: vec![0.0],
+                sample_rate: 16000,
+            })
         }
 
         fn validate_arity(&self, _expects_speaker_tensor: bool) -> Result<(), InferenceError> {
@@ -51,5 +54,7 @@ mod tests {
         }
     }
 
-    crate::inference_engine_contract_tests!(|| Box::new(ContractFakeEngine) as Box<dyn InferenceEngine>);
+    crate::inference_engine_contract_tests!(
+        || Box::new(ContractFakeEngine) as Box<dyn InferenceEngine>
+    );
 }

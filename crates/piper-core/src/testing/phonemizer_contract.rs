@@ -19,7 +19,10 @@ macro_rules! phonemizer_contract_tests {
             let phonemizer = $make();
             let result = phonemizer.phonemize("hello", "en-US");
             assert!(result.is_ok(), "expected Ok, got {result:?}");
-            assert!(!result.unwrap().is_empty(), "expected at least one sentence");
+            assert!(
+                !result.unwrap().is_empty(),
+                "expected at least one sentence"
+            );
         }
 
         #[test]
@@ -32,7 +35,10 @@ macro_rules! phonemizer_contract_tests {
         fn an_unresolvable_voice_returns_an_error_not_a_panic() {
             let phonemizer = $make();
             let result = phonemizer.phonemize("hello", "not-a-real-voice-xyz-123");
-            assert!(result.is_err(), "expected an error for an unresolvable voice");
+            assert!(
+                result.is_err(),
+                "expected an error for an unresolvable voice"
+            );
         }
     };
 }
@@ -52,9 +58,14 @@ mod tests {
     impl Phonemizer for ContractFakePhonemizer {
         fn phonemize(&self, text: &str, voice: &str) -> Result<Vec<Sentence>, PhonemizationError> {
             if voice == "not-a-real-voice-xyz-123" {
-                return Err(PhonemizationError::BackendFailure("unknown voice".to_string()));
+                return Err(PhonemizationError::BackendFailure(
+                    "unknown voice".to_string(),
+                ));
             }
-            Ok(text.split_whitespace().map(|w| Sentence(w.to_string())).collect())
+            Ok(text
+                .split_whitespace()
+                .map(|w| Sentence(w.to_string()))
+                .collect())
         }
     }
 

@@ -47,7 +47,10 @@ mod tests {
     #[test]
     fn trait_object_can_be_called_through_a_dyn_reference() {
         let mut engine: Box<dyn InferenceEngine> = Box::new(FixedOutputEngine {
-            output: SynthesizedAudio { samples: vec![0.1, 0.2], sample_rate: 22050 },
+            output: SynthesizedAudio {
+                samples: vec![0.1, 0.2],
+                sample_rate: 22050,
+            },
         });
         let params = ResolvedInferenceParams {
             noise_scale: 0.667,
@@ -55,7 +58,9 @@ mod tests {
             noise_w: 0.8,
             speaker_id: None,
         };
-        let result = engine.infer(&PhonemeIdSequence(vec![1, 2, 3]), params).unwrap();
+        let result = engine
+            .infer(&PhonemeIdSequence(vec![1, 2, 3]), params)
+            .unwrap();
         assert_eq!(result.samples, vec![0.1, 0.2]);
     }
 }

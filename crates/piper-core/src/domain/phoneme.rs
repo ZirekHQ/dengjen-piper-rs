@@ -94,7 +94,12 @@ mod tests {
 
     #[test]
     fn extends_every_id_in_a_multi_id_phoneme_mapping() {
-        let m = map([(BOS, vec![1]), (PAD, vec![0]), (EOS, vec![2]), ('a', vec![10, 11])]);
+        let m = map([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10, 11]),
+        ]);
 
         let encoding = encode_phonemes(&m, "a");
 
@@ -120,7 +125,12 @@ mod tests {
 
     #[test]
     fn drops_unmapped_phonemes_and_warns() {
-        let m = map([(BOS, vec![1]), (PAD, vec![0]), (EOS, vec![2]), ('a', vec![10])]);
+        let m = map([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('a', vec![10]),
+        ]);
 
         let encoding = encode_phonemes(&m, "ab");
 
@@ -141,9 +151,15 @@ mod tests {
         assert_eq!(
             encoding.warnings,
             vec![
-                PhonemizationWarning::MissingSentinel { sentinel: Sentinel::Bos },
-                PhonemizationWarning::MissingSentinel { sentinel: Sentinel::Pad },
-                PhonemizationWarning::MissingSentinel { sentinel: Sentinel::Eos },
+                PhonemizationWarning::MissingSentinel {
+                    sentinel: Sentinel::Bos
+                },
+                PhonemizationWarning::MissingSentinel {
+                    sentinel: Sentinel::Pad
+                },
+                PhonemizationWarning::MissingSentinel {
+                    sentinel: Sentinel::Eos
+                },
             ]
         );
     }

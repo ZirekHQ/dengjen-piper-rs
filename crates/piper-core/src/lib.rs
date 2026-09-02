@@ -6,5 +6,5 @@
 pub mod domain;
 pub mod ports;
 pub mod registry;
-pub mod use_cases;
 pub mod testing;
+pub mod use_cases;
