@@ -6,4 +6,5 @@ target/
 .DS_Store
 !.vscode/*.json
 !.github/*.json
+!tests/fixtures/*.json
 /.idea/
