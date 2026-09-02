@@ -105,6 +105,31 @@ fn copy_folder(src: &Path, dst: &Path) {
     std::fs::rename(&tmp_dst, dst).expect("Failed to move completed copy into place");
 }
 
+/// Name of the directory CMake installs eSpeak NG's runtime data under
+/// (`<install-prefix>/share/espeak-ng-data`), and the name `espeak-rs`'s own
+/// data lookup expects to find next to the final binary.
+const ESPEAK_NG_DATA_DIR_NAME: &str = "espeak-ng-data";
+
+/// Copies the CMake-installed `espeak-ng-data` directory from `out_dir/share`
+/// to sit directly next to the crate's final binary in `target_dir`.
+///
+/// `espeak-ng-data` is otherwise only reachable inside `OUT_DIR`'s ephemeral,
+/// hash-named path (`target/<profile>/build/espeak-rs-sys-<hash>/out/...`),
+/// which vanishes with `target/` and can't be located to bundle into a
+/// distributable build. `espeak-rs`'s data lookup already checks the
+/// executable's own directory for `espeak-ng-data`, so placing a copy in
+/// `target_dir` makes a plain `cargo build --release` runnable (and
+/// distributable, by copying this folder alongside the binary) with no
+/// `PIPER_ESPEAKNG_DATA_DIRECTORY` needed. See issue #10.
+fn copy_espeak_ng_data_next_to_binary(out_dir: &Path, target_dir: &Path) {
+    let dst = target_dir.join(ESPEAK_NG_DATA_DIR_NAME);
+    if dst.exists() {
+        return;
+    }
+    let src = out_dir.join("share").join(ESPEAK_NG_DATA_DIR_NAME);
+    copy_folder(&src, &dst);
+}
+
 fn extract_lib_names(out_dir: &Path, build_shared_libs: bool, target_os: &str) -> Vec<String> {
     let lib_pattern = if target_os == "windows" {
         "*.lib"
@@ -392,7 +417,10 @@ fn emit_system_lib_link_directives(lib_path: &Path, default_name: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::{copy_folder, copy_succeeded, resolved_pcaudio_lib, resolved_sonic_lib};
+    use super::{
+        copy_espeak_ng_data_next_to_binary, copy_folder, copy_succeeded, resolved_pcaudio_lib,
+        resolved_sonic_lib,
+    };
     use std::panic::{AssertUnwindSafe, catch_unwind};
     use std::path::PathBuf;
 
@@ -615,6 +643,48 @@ mod tests {
         std::fs::remove_dir_all(&src).unwrap();
         std::fs::remove_file(&tmp_dst).unwrap();
     }
+
+    #[test]
+    fn copies_espeak_ng_data_next_to_the_final_binary() {
+        let out_dir = scratch_path("espeak-data-out");
+        let target_dir = scratch_path("espeak-data-target");
+        let data_src = out_dir.join("share").join("espeak-ng-data");
+        std::fs::create_dir_all(&data_src).unwrap();
+        std::fs::write(data_src.join("phontab"), b"phontab-contents").unwrap();
+
+        copy_espeak_ng_data_next_to_binary(&out_dir, &target_dir);
+
+        assert_eq!(
+            std::fs::read(target_dir.join("espeak-ng-data").join("phontab")).unwrap(),
+            b"phontab-contents"
+        );
+
+        std::fs::remove_dir_all(&out_dir).unwrap();
+        std::fs::remove_dir_all(&target_dir).unwrap();
+    }
+
+    #[test]
+    fn skips_copying_espeak_ng_data_when_already_present_next_to_the_binary() {
+        // A previously-completed copy must not be re-attempted -- and must
+        // not panic -- even if OUT_DIR's copy is no longer around (e.g. a
+        // later `cargo clean` without deleting `target_dir`), mirroring the
+        // existing espeak-ng source copy's dst.exists() skip.
+        let out_dir = scratch_path("espeak-data-missing-out");
+        let target_dir = scratch_path("espeak-data-existing-target");
+        let existing_dst = target_dir.join("espeak-ng-data");
+        std::fs::create_dir_all(&existing_dst).unwrap();
+        std::fs::write(existing_dst.join("phontab"), b"already-here").unwrap();
+        assert!(!out_dir.exists());
+
+        copy_espeak_ng_data_next_to_binary(&out_dir, &target_dir);
+
+        assert_eq!(
+            std::fs::read(existing_dst.join("phontab")).unwrap(),
+            b"already-here"
+        );
+
+        std::fs::remove_dir_all(&target_dir).unwrap();
+    }
 }
 
 fn main() {
@@ -752,6 +822,8 @@ fn main() {
         .always_configure(false);
 
     let bindings_dir = config.build();
+
+    copy_espeak_ng_data_next_to_binary(&out_dir, &target_dir);
 
     // Search paths
     println!("cargo:rustc-link-search={}", out_dir.join("lib").display());

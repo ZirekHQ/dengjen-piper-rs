@@ -1,3 +1,43 @@
+## Building a distributable binary
+
+`espeak-rs-sys`'s build script compiles eSpeak NG's data files (dictionaries,
+voices, phoneme tables) and, since it needs *some* directory to build into,
+generates them inside `target/<profile>/build/espeak-rs-sys-<hash>/out/...` —
+an ephemeral, cache-keyed path that disappears the moment `target/` is
+deleted or the crate is rebuilt with a different hash. Copying only the
+compiled binary out of `target/` and discarding the rest (e.g. `cargo build
+--release` followed by `rm -rf target`) breaks it at runtime with:
+
+```
+Failed to initialize eSpeak-ng. Try setting `PIPER_ESPEAKNG_DATA_DIRECTORY`
+to the directory that contains the `espeak-ng-data` directory.
+```
+
+To make this easy, the build script also copies `espeak-ng-data` to
+`target/<profile>/espeak-ng-data`, right next to the binary itself. At
+runtime, `espeak-rs` looks for `espeak-ng-data` (in this order) in:
+
+1. the directory named by the `PIPER_ESPEAKNG_DATA_DIRECTORY` env var,
+2. the current working directory,
+3. the directory containing the running executable.
+
+So for a plain `cargo build --release` / `cargo run`, it just works — no env
+var needed, since (3) already finds `target/release/espeak-ng-data`.
+
+To ship a binary elsewhere, copy both the binary and its `espeak-ng-data`
+directory together and keep them side by side:
+
+```console
+cargo build --release
+mkdir -p dist
+cp target/release/<your-binary> dist/
+cp -r target/release/espeak-ng-data dist/
+```
+
+If your packaging can't keep them side by side (e.g. the data directory
+belongs in a shared system location), set `PIPER_ESPEAKNG_DATA_DIRECTORY` at
+runtime to the directory that *contains* `espeak-ng-data`. See issue #10.
+
 ## Gotchas
 
 ### Link failed on Windows:
