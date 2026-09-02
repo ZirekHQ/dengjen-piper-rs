@@ -35,6 +35,8 @@ jobs:
         # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
         # so each needs its own run rather than a single --all-features build.
         run: cargo test -p piper-rs --no-default-features --features espeak-ng
+      - name: check ru_listx dictionary is packaged (#23)
+        run: bash .github/scripts/check-ru-listx-packaged.sh
 
   # Cross-compiling for Android has no unit tests of its own (it's a build
   # script exercising CMake + the NDK toolchain), so an actual cross-build
