@@ -283,6 +283,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dengjen-espeak-rs-adapter"
+version = "0.1.0"
+dependencies = [
+ "dengjen-espeak-rs",
+ "dengjen-piper-core",
+]
+
+[[package]]
 name = "dengjen-espeak-rs-sys"
 version = "0.2.0"
 dependencies = [
