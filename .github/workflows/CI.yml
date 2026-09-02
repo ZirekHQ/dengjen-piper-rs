@@ -67,3 +67,32 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
         run: cargo build -p espeak-rs-sys --target aarch64-linux-android
+
+  # Cross-compiling for Linux arm64 (e.g. Raspberry Pi) needs no toolchain
+  # file or sysroot of its own: the `cmake`/`cc` crates already recognize the
+  # standard `aarch64-linux-gnu-*` cross-compiler naming convention that
+  # `crossbuild-essential-arm64` installs, unlike the Android NDK (see the
+  # `android` job above and issue #9). A plain cross-build is still the
+  # regression test for it, same reasoning as that job. See issue #16.
+  linux-arm64:
+    name: cross-compile (aarch64-unknown-linux-gnu)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang (for bindgen) and the arm64 cross toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev crossbuild-essential-arm64 pkg-config libssl-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          targets: aarch64-unknown-linux-gnu
+      - name: cargo build (piper-rs, aarch64-unknown-linux-gnu)
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build -p piper-rs --target aarch64-unknown-linux-gnu
