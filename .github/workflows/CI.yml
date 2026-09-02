@@ -35,3 +35,35 @@ jobs:
         # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
         # so each needs its own run rather than a single --all-features build.
         run: cargo test -p piper-rs --no-default-features --features espeak-ng
+
+  # Cross-compiling for Android has no unit tests of its own (it's a build
+  # script exercising CMake + the NDK toolchain), so an actual cross-build
+  # is the regression test for it. See issue #9.
+  android:
+    name: cross-compile (aarch64-linux-android)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang (for bindgen)
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+      - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: false
+      - name: cargo build (espeak-rs-sys, aarch64-linux-android)
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+          CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
+        run: cargo build -p espeak-rs-sys --target aarch64-linux-android

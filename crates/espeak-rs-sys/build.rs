@@ -112,6 +112,47 @@ fn extract_lib_assets(out_dir: &Path, target_os: &str) -> Vec<PathBuf> {
     files
 }
 
+/// Maps a Rust `CARGO_CFG_TARGET_ARCH` to the ABI name the Android NDK's
+/// CMake toolchain file expects for `ANDROID_ABI`.
+fn android_abi(target_arch: &str) -> &'static str {
+    match target_arch {
+        "aarch64" => "arm64-v8a",
+        "arm" => "armeabi-v7a",
+        "x86" => "x86",
+        "x86_64" => "x86_64",
+        other => panic!("unsupported Android target arch: {other}"),
+    }
+}
+
+/// Locates the Android NDK's CMake toolchain file from the first of
+/// `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, or `NDK_HOME` that is set.
+///
+/// The `cmake` crate has no built-in Android support: without an explicit
+/// `CMAKE_TOOLCHAIN_FILE`, CMake's configure step fails outright when
+/// cross-compiling for Android (see issue #9), so this must be set up
+/// manually the same way `ndk-build`/Gradle's CMake integration does.
+fn android_toolchain_file() -> PathBuf {
+    let ndk_home = ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "NDK_HOME"]
+        .into_iter()
+        .find_map(|var| env::var(var).ok())
+        .expect(
+            "targeting Android requires ANDROID_NDK_HOME (or ANDROID_NDK_ROOT/NDK_HOME) \
+             to be set to an Android NDK installation",
+        );
+
+    let toolchain_file = Path::new(&ndk_home)
+        .join("build")
+        .join("cmake")
+        .join("android.toolchain.cmake");
+    assert!(
+        toolchain_file.exists(),
+        "Android NDK toolchain file not found at {} (checked NDK home {})",
+        toolchain_file.display(),
+        ndk_home
+    );
+    toolchain_file
+}
+
 fn macos_link_search_path() -> Option<String> {
     let output = Command::new("clang")
         .arg("--print-search-dirs")
@@ -221,6 +262,23 @@ fn main() {
         config.define("USE_LIBPCAUDIO", "OFF");
     }
 
+    if target_os == "android" {
+        let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
+        let android_platform =
+            env::var("ANDROID_PLATFORM").unwrap_or_else(|_| "android-21".to_string());
+        // c++_shared, not c++_static: the NDK recommends against a static
+        // STL once an app links more than one native library, since each
+        // static copy gets its own C++ runtime globals (locale, exception
+        // state) and duplicate-symbol/ODR clashes across .so boundaries
+        // follow. The app's packaging step must bundle the matching
+        // libc++_shared.so from the NDK sysroot alongside the built .so.
+        config
+            .define("CMAKE_TOOLCHAIN_FILE", android_toolchain_file())
+            .define("ANDROID_ABI", android_abi(&target_arch))
+            .define("ANDROID_PLATFORM", android_platform)
+            .define("ANDROID_STL", "c++_shared");
+    }
+
     // General
     config
         .profile(&profile)
@@ -265,6 +323,12 @@ fn main() {
     if target_os == "macos" {
         println!("cargo:rustc-link-lib=framework=Foundation");
         println!("cargo:rustc-link-lib=c++");
+    }
+
+    // Android: speechPlayer is C++, so the NDK's C++ runtime must be linked
+    // explicitly (rustc, not CMake, drives this final link step).
+    if target_os == "android" {
+        println!("cargo:rustc-link-lib=c++_shared");
     }
 
     // Link libraries
