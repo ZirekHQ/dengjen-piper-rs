@@ -13,7 +13,7 @@ set -euo pipefail
 needle="espeak-ng/dictsource/extra/ru_listx"
 
 listing=$(cargo package --list --allow-dirty -p espeak-rs-sys)
-if ! grep -qF "$needle" <<<"$listing"; then
+if ! grep -qxF "$needle" <<<"$listing"; then
   echo "::error::${needle} is missing from the espeak-rs-sys package file list; the published crate would ship without the Russian extra dictionary (see #23)" >&2
   exit 1
 fi
