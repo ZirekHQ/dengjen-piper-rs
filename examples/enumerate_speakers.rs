@@ -6,7 +6,7 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_
 cargo run --example enumerate_speakers en_US-libritts_r-medium.onnx.json
 */
 
-use piper_rs::Piper;
+use dengjen_piper_rs::Piper;
 use std::path::Path;
 
 fn main() {

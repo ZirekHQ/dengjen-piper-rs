@@ -6,7 +6,7 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_
 cargo run --example wav en_US-libritts_r-medium.onnx.json output.wav 50
 */
 
-use piper_rs::Piper;
+use dengjen_piper_rs::Piper;
 use std::io::Write;
 use std::path::Path;
 
