@@ -146,6 +146,22 @@ fn macos_link_search_path() -> Option<String> {
 /// `*-NOTFOUND`) in addition to `USE_LIBPCAUDIO:BOOL=ON`, since that flag
 /// alone can be stale (CACHE'd from an earlier configure where the library
 /// was present) while the resolved paths were invalidated since.
+/// CMake's `if()` boolean grammar (case-insensitive): true is `ON`, `YES`,
+/// `TRUE`, `Y`, or a non-zero number; everything else (including `OFF`,
+/// `NO`, `FALSE`, `N`, `IGNORE`, `NOTFOUND`, a `*-NOTFOUND` suffix, or empty)
+/// is false. `option()`-declared cache entries persist whatever spelling was
+/// used to set them (verified: `-DVAR=TRUE` is not normalized to `ON` in
+/// CMakeCache.txt), so a literal `== "ON"` check misses valid true values.
+fn cmake_bool_is_true(value: &str) -> bool {
+    let upper = value.to_ascii_uppercase();
+    match upper.as_str() {
+        "ON" | "YES" | "TRUE" | "Y" => true,
+        "OFF" | "NO" | "FALSE" | "N" | "IGNORE" | "NOTFOUND" | "" => false,
+        _ if upper.ends_with("-NOTFOUND") => false,
+        _ => upper.parse::<i64>().is_ok_and(|n| n != 0),
+    }
+}
+
 fn resolved_pcaudio_lib(cache_contents: &str) -> Option<PathBuf> {
     let mut use_libpcaudio = false;
     let mut pcaudio_lib = None;
@@ -154,7 +170,7 @@ fn resolved_pcaudio_lib(cache_contents: &str) -> Option<PathBuf> {
     for line in cache_contents.lines() {
         let line = line.trim();
         if let Some(value) = line.strip_prefix("USE_LIBPCAUDIO:BOOL=") {
-            use_libpcaudio = value == "ON";
+            use_libpcaudio = cmake_bool_is_true(value);
         } else if let Some(value) = line.strip_prefix("PCAUDIO_LIB:FILEPATH=") {
             pcaudio_lib = Some(value);
         } else if let Some(value) = line.strip_prefix("PCAUDIO_INC:PATH=") {
@@ -209,6 +225,31 @@ mod tests {
     fn returns_none_when_cache_missing_keys() {
         let cache = "CMAKE_INSTALL_PREFIX:PATH=/out\n";
         assert_eq!(resolved_pcaudio_lib(cache), None);
+    }
+
+    #[test]
+    fn treats_true_as_enabled_like_cmake_boolean_semantics() {
+        // A cache entry set via `-DUSE_LIBPCAUDIO=TRUE` persists that literal
+        // string rather than CMake normalizing it to ON (verified against a
+        // real `cmake` invocation, not assumed).
+        let cache = "PCAUDIO_LIB:FILEPATH=/usr/lib/x86_64-linux-gnu/libpcaudio.so\n\
+                      PCAUDIO_INC:PATH=/usr/include\n\
+                      USE_LIBPCAUDIO:BOOL=TRUE\n";
+        assert_eq!(
+            resolved_pcaudio_lib(cache),
+            Some(PathBuf::from("/usr/lib/x86_64-linux-gnu/libpcaudio.so"))
+        );
+    }
+
+    #[test]
+    fn treats_1_as_enabled_like_cmake_boolean_semantics() {
+        let cache = "PCAUDIO_LIB:FILEPATH=/usr/lib/x86_64-linux-gnu/libpcaudio.so\n\
+                      PCAUDIO_INC:PATH=/usr/include\n\
+                      USE_LIBPCAUDIO:BOOL=1\n";
+        assert_eq!(
+            resolved_pcaudio_lib(cache),
+            Some(PathBuf::from("/usr/lib/x86_64-linux-gnu/libpcaudio.so"))
+        );
     }
 }
 
