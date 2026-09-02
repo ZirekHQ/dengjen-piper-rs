@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in piper-rs isn't behaving the way it should.
+description: Something in dengjen-piper-rs isn't behaving the way it should.
 title: "[Bug] "
 labels: ["bug"]
 body:
@@ -11,7 +11,7 @@ body:
   - type: input
     id: crate-version
     attributes:
-      label: piper-rs version
+      label: dengjen-piper-rs version
       description: From Cargo.toml / Cargo.lock, or the git rev if built from source.
       placeholder: e.g. 0.2.0
     validations:

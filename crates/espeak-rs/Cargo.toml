@@ -1,5 +1,5 @@
 [package]
-name = "espeak-rs"
+name = "dengjen-espeak-rs"
 version = "0.2.0"
 license = "GPL-3.0-or-later"
 description = "Safe Rust bindings to espeak-ng"
@@ -9,7 +9,7 @@ edition = "2024"
 
 [dependencies]
 # Local crates
-espeak-rs-sys = { path = "../espeak-rs-sys", version = "0.2.0" }
+espeak-rs-sys = { path = "../espeak-rs-sys", package = "dengjen-espeak-rs-sys", version = "0.2.0" }
 
 
 [features]

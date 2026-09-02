@@ -1,6 +1,6 @@
-# piper-rs
+# dengjen-piper-rs
 
-[![Crates](https://img.shields.io/crates/v/piper-rs?logo=rust&color=F07B3C)](https://crates.io/crates/piper-rs/)
+[![Crates](https://img.shields.io/crates/v/dengjen-piper-rs?logo=rust&color=F07B3C)](https://crates.io/crates/dengjen-piper-rs/)
 
 Use [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models in Rust.
 
@@ -13,7 +13,7 @@ Use [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models in Rust.
 ## Install
 
 ```console
-cargo add piper-rs
+cargo add dengjen-piper-rs
 ```
 
 ## Examples

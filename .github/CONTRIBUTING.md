@@ -1,4 +1,4 @@
-# Contributing to piper-rs
+# Contributing to dengjen-piper-rs
 
 Thanks for taking the time to contribute. Two lightweight conventions make reviews easier and
 keep the project's history useful — neither is required to get a PR merged.
