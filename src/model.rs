@@ -154,6 +154,50 @@ mod tests {
             vec![1, 10, 0, 11, 0, 2]
         );
     }
+
+    // Regression guard for #12 ("output for some french models is low and
+    // garbled"): reproduces the reported model end-to-end through
+    // phonemization by asserting every NFD-normalized phoneme espeak-ng
+    // produces for a battery of French sentences — nasal vowels, cedilla,
+    // the œ ligature, accents, expanded numbers — has an entry in the real
+    // fr_FR-tom-medium phoneme_id_map, i.e. none would be silently dropped
+    // by `phonemes_to_ids`. On this specific model the map already covers
+    // both composed and decomposed forms, so synthesis wasn't actually
+    // broken by the NFD gap `normalizes_composed_phonemes_to_nfd_before_lookup`
+    // fixed for other languages; this pins that down and catches any future
+    // regression in this model's phoneme coverage. The fixture is
+    // `fr_FR-tom-medium.onnx.json`'s config as published on Hugging Face
+    // (rhasspy/piper-voices) — no binary weights, just the phoneme_id_map
+    // and metadata this test reads.
+    #[cfg(feature = "espeak-rs")]
+    #[test]
+    fn french_tom_medium_maps_every_phoneme_from_real_sentences() {
+        let config: ModelConfig =
+            serde_json::from_str(include_str!("../tests/fixtures/fr_FR-tom-medium.onnx.json"))
+                .expect("fixture should deserialize as ModelConfig");
+
+        let sentences = [
+            "Le garçon a une leçon de français.",
+            "Voilà, c'est ça, ça va ? Où êtes-vous ? Il a vécu à Noël.",
+            "Un œuf, une sœur, un cœur.",
+            "123 personnes étaient présentes le 4 juillet.",
+        ];
+
+        for sentence in sentences {
+            let phonemes = espeak_rs::text_to_phonemes(sentence, &config.espeak.voice, None)
+                .expect("espeak-ng should phonemize French text")
+                .join(" ");
+
+            for ch in phonemes.nfd() {
+                assert!(
+                    config.phoneme_id_map.contains_key(&ch),
+                    "phoneme {ch:?} (U+{:04X}) from {sentence:?} has no entry in \
+                     fr_FR-tom-medium's phoneme_id_map and would be silently dropped",
+                    ch as u32
+                );
+            }
+        }
+    }
 }
 
 pub fn infer(
