@@ -2,3 +2,4 @@
 //! use cases. Everything here is testable with no fakes or dependencies.
 
 pub mod phoneme;
+pub mod voice;
