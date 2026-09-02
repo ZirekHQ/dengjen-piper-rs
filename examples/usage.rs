@@ -8,6 +8,7 @@ cargo run --example usage en_US-libritts_r-medium.onnx.json 80
 
 use piper_rs::Piper;
 use rodio::buffer::SamplesBuffer;
+use std::num::NonZero;
 use std::path::Path;
 
 fn main() {
@@ -24,8 +25,10 @@ fn main() {
         .create(text, false, speaker_id, None, None, None)
         .unwrap();
 
-    let (_stream, handle) = rodio::OutputStream::try_default().unwrap();
-    let sink = rodio::Sink::try_new(&handle).unwrap();
-    sink.append(SamplesBuffer::new(1, sample_rate, samples));
-    sink.sleep_until_end();
+    let device = rodio::DeviceSinkBuilder::open_default_sink().unwrap();
+    let player = rodio::Player::connect_new(device.mixer());
+    let channels = NonZero::new(1).unwrap();
+    let sample_rate = NonZero::new(sample_rate).unwrap();
+    player.append(SamplesBuffer::new(channels, sample_rate, samples));
+    player.sleep_until_end();
 }
