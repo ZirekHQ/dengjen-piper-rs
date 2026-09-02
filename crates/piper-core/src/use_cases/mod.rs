@@ -4,3 +4,4 @@
 //! with no adapter crate needed.
 
 pub mod load_voice;
+pub mod phonemize;
