@@ -7,4 +7,5 @@ target/
 !.vscode/*.json
 !.github/*.json
 !tests/fixtures/*.json
+!crates/*/tests/fixtures/*.json
 /.idea/
