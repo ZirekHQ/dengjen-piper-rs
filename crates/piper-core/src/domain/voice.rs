@@ -39,12 +39,17 @@ pub struct Voice {
 impl Voice {
     /// Returns the speaker name→id map, or `None` for single-speaker
     /// voices — distinguishing "no speaker support" from "supports
-    /// speakers but none are listed" (R10).
+    /// speakers but none are listed" (R10). Decided by `num_speakers`, the
+    /// same signal `resolve_inference_params` (R7) uses to decide whether
+    /// to include a speaker id at all: a voice reporting `num_speakers > 1`
+    /// always gets `Some`, even with an incomplete `speaker_map`, so a
+    /// malformed voice config surfaces as an inconsistency here rather than
+    /// silently reading as single-speaker.
     pub fn speakers(&self) -> Option<&SpeakerMap> {
-        if self.speaker_map.is_empty() {
-            None
-        } else {
+        if self.num_speakers > 1 {
             Some(&self.speaker_map)
+        } else {
+            None
         }
     }
 }
@@ -53,7 +58,7 @@ impl Voice {
 mod tests {
     use super::*;
 
-    fn voice_with_speaker_map(speaker_map: SpeakerMap) -> Voice {
+    fn voice_with(num_speakers: u32, speaker_map: SpeakerMap) -> Voice {
         Voice {
             voice_id: "test-voice".to_string(),
             audio: AudioConfig { sample_rate: 22050 },
@@ -62,7 +67,7 @@ mod tests {
                 length_scale: 1.0,
                 noise_w: 0.8,
             },
-            num_speakers: if speaker_map.is_empty() { 1 } else { speaker_map.len() as u32 },
+            num_speakers,
             speaker_map,
             phoneme_id_map: PhonemeIdMap::new(),
             espeak_voice: "en-US".to_string(),
@@ -70,15 +75,26 @@ mod tests {
     }
 
     #[test]
-    fn returns_none_for_an_empty_speaker_map() {
-        let voice = voice_with_speaker_map(SpeakerMap::new());
+    fn returns_none_for_a_single_speaker_voice_with_an_empty_map() {
+        let voice = voice_with(1, SpeakerMap::new());
         assert_eq!(voice.speakers(), None);
     }
 
     #[test]
-    fn returns_the_map_when_it_has_entries() {
-        let map = SpeakerMap::from([("default".to_string(), 0i64)]);
-        let voice = voice_with_speaker_map(map.clone());
+    fn returns_the_map_for_a_multi_speaker_voice() {
+        let map = SpeakerMap::from([("a".to_string(), 0i64), ("b".to_string(), 1i64)]);
+        let voice = voice_with(2, map.clone());
         assert_eq!(voice.speakers(), Some(&map));
+    }
+
+    #[test]
+    fn returns_some_for_a_multi_speaker_voice_even_with_an_incomplete_map() {
+        // num_speakers is the R7-consistent signal, not the map's own
+        // contents — a multi-speaker voice with a somehow-empty
+        // speaker_map is a malformed config, and this must surface as
+        // Some(empty map) so the inconsistency is visible, not silently
+        // reported as "no speaker support."
+        let voice = voice_with(2, SpeakerMap::new());
+        assert_eq!(voice.speakers(), Some(&SpeakerMap::new()));
     }
 }
