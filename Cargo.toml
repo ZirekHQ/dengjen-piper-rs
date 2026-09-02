@@ -5,7 +5,7 @@ resolver = "1"
 [package]
 name = "piper-rs"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Use piper TTS models in Rust"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"

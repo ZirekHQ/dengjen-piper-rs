@@ -6,8 +6,8 @@ use std::path::Path;
 
 use ort::session::Session;
 
-use model::infer;
 pub use model::ModelConfig;
+use model::infer;
 
 #[derive(Debug)]
 pub enum PiperError {

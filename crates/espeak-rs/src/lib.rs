@@ -1,5 +1,5 @@
 use std::env;
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
@@ -77,18 +77,17 @@ fn locate_espeak_data() -> Option<PathBuf> {
         }
     }
     // 2. Current working directory
-    if let Ok(cwd) = env::current_dir() {
-        if cwd.join(ESPEAKNG_DATA_DIR_NAME).exists() {
-            return Some(cwd);
-        }
+    if let Ok(cwd) = env::current_dir()
+        && cwd.join(ESPEAKNG_DATA_DIR_NAME).exists()
+    {
+        return Some(cwd);
     }
     // 3. Directory of the current executable
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            if dir.join(ESPEAKNG_DATA_DIR_NAME).exists() {
-                return Some(dir.to_path_buf());
-            }
-        }
+    if let Ok(exe) = env::current_exe()
+        && let Some(dir) = exe.parent()
+        && dir.join(ESPEAKNG_DATA_DIR_NAME).exists()
+    {
+        return Some(dir.to_path_buf());
     }
     None
 }
