@@ -4,3 +4,4 @@
 //! adapter crates that depend on this one, never the reverse.
 
 pub mod domain;
+pub mod ports;
