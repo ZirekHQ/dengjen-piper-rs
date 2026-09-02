@@ -4,6 +4,7 @@ use ndarray::{Array1, Array2};
 use ort::session::Session;
 use ort::value::Tensor;
 use serde::Deserialize;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::PiperError;
 use crate::PiperResult;
@@ -43,6 +44,13 @@ pub struct ModelConfig {
 // followed by PAD's ids, then EOS ids. Every mapping is a Vec<i64> because a
 // single phoneme can map to more than one id, so each entry is extended in
 // full rather than truncated to its first id.
+//
+// `phoneme_id_map` is built from the model's training vocabulary, which uses
+// NFD (decomposed) Unicode — e.g. 'c' + a combining cedilla rather than the
+// composed 'ç'. espeak-ng emits composed phonemes, so the input is
+// NFD-normalized here before the per-char lookup; without this, composed
+// phonemes have no entry in the map and are silently dropped like any other
+// unknown phoneme.
 pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
     let map = &config.phoneme_id_map;
     let default_id = [0i64];
@@ -52,7 +60,7 @@ pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
 
     let mut ids = Vec::with_capacity((phonemes.len() + 1) * 2);
     ids.extend_from_slice(bos_ids);
-    for ch in phonemes.chars() {
+    for ch in phonemes.nfd() {
         if let Some(phoneme_ids) = map.get(&ch) {
             ids.extend_from_slice(phoneme_ids);
             ids.extend_from_slice(pad_ids);
@@ -125,6 +133,26 @@ mod tests {
         let config = config_with_map(HashMap::from([('a', vec![5])]));
 
         assert_eq!(phonemes_to_ids(&config, "a"), vec![0, 5, 0, 0]);
+    }
+
+    #[test]
+    fn normalizes_composed_phonemes_to_nfd_before_lookup() {
+        // The model is trained on NFD (decomposed) Unicode, e.g. 'c' followed
+        // by a combining cedilla (U+0327), but espeak-ng emits the composed
+        // form 'ç' (U+00E7) as a single codepoint. Without NFD normalization
+        // that composed codepoint isn't in the map and is silently dropped.
+        let config = config_with_map(HashMap::from([
+            (BOS, vec![1]),
+            (PAD, vec![0]),
+            (EOS, vec![2]),
+            ('c', vec![10]),
+            ('\u{0327}', vec![11]),
+        ]));
+
+        assert_eq!(
+            phonemes_to_ids(&config, "\u{00E7}"),
+            vec![1, 10, 0, 11, 0, 2]
+        );
     }
 }
 
