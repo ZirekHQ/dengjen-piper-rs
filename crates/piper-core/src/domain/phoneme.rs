@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use unicode_normalization::UnicodeNormalization;
-
 pub const BOS: char = '^';
 pub const EOS: char = '$';
 pub const PAD: char = '_';
