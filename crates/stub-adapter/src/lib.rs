@@ -118,3 +118,12 @@ mod tests {
         assert!(matches!(result, Err(PhonemizationError::BackendFailure(_))));
     }
 }
+
+#[cfg(test)]
+mod contract {
+    use super::*;
+
+    piper_core::phonemizer_contract_tests!(
+        || Box::new(StubPhonemizer::new()) as Box<dyn Phonemizer>
+    );
+}
