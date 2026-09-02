@@ -1,0 +1,10 @@
+[package]
+name = "dengjen-piper-core"
+version = "0.1.0"
+license = "GPL-3.0-or-later"
+description = "Domain model, use cases, and port traits for the dengjen-piper-rs TTS platform"
+repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
+edition = "2024"
+
+[dependencies]
+unicode-normalization = "0.1"
