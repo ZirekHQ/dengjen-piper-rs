@@ -2,8 +2,8 @@ use crate::domain::errors::VoiceLoadError;
 use crate::domain::voice::Voice;
 
 /// Loads a `Voice` given its id. Implemented by adapter crates (e.g.
-/// `fs-voice-repo`, which loads from a model+config path pair) — this
-/// trait carries no filesystem or JSON-schema detail.
+/// `fs-voice-repo`) — this trait carries no filesystem, JSON-schema, or
+/// other storage-specific detail.
 pub trait VoiceRepository: Send + Sync {
     fn load(&self, voice_id: &str) -> Result<Voice, VoiceLoadError>;
 }
