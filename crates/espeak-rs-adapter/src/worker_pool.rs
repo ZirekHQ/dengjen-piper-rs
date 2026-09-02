@@ -46,11 +46,6 @@ impl PhonemizerWorkerPool {
         }
     }
 
-    // No caller yet within this crate — `EspeakRsPhonemizer` (Task 9) is
-    // the one that constructs a production pool via `new`; until then it's
-    // unreachable even from the test binary, unlike `with_processor` and
-    // `phonemize` below, which the tests do exercise.
-    #[allow(dead_code)]
     pub(crate) fn new(capacity: usize) -> Self {
         Self::with_processor(capacity, |text, voice| {
             espeak_rs::text_to_phonemes(text, voice, None)
