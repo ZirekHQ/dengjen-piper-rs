@@ -292,6 +292,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "dengjen-piper-core"
+version = "0.1.0"
+dependencies = [
+ "unicode-normalization",
+]
+
+[[package]]
 name = "dengjen-piper-rs"
 version = "0.2.0"
 dependencies = [
