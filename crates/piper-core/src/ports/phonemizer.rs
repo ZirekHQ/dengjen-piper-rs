@@ -1,7 +1,9 @@
 use crate::domain::errors::PhonemizationError;
 
-/// One phonemized sentence: joined clause text with reconstructed
-/// terminator punctuation. The output unit of a `Phonemizer` port call.
+/// One segment of phonemized output text — the atomic unit a `Phonemizer`
+/// port call returns. Deliberately opaque about how a segment boundary was
+/// decided (clause accumulation, whitespace splitting, or anything else):
+/// that's each backend adapter's own concern, not this port's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Sentence(pub String);
 
