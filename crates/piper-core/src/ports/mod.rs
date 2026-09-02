@@ -3,4 +3,5 @@
 //! Adapter crates depend on this module; this module depends on nothing
 //! outside `crate::domain`.
 
+pub mod inference_engine;
 pub mod phonemizer;
