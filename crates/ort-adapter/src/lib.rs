@@ -79,6 +79,17 @@ pub struct OrtInferenceEngine {
 }
 
 impl OrtInferenceEngine {
+    /// Requires `sample_rate` up front, so a composition root cannot build
+    /// this engine before it knows the target voice's config. The required
+    /// order is:
+    ///
+    /// 1. `repository.load(voice_id)` — a `piper_core::ports::VoiceRepository`
+    ///    call — to get the `Voice`, and read `voice.audio.sample_rate` off it.
+    /// 2. `OrtInferenceEngine::new(model_path, voice.audio.sample_rate)`.
+    /// 3. Hand both `repository` and the now-built engine to
+    ///    `piper_core::use_cases::load_voice::LoadVoice::execute`, which
+    ///    loads the voice again (see that struct's doc comment for why) to
+    ///    validate the engine's arity and register the voice.
     pub fn new(model_path: &std::path::Path, sample_rate: u32) -> Result<Self, InferenceError> {
         let session = Session::builder()
             .map_err(|e| {
