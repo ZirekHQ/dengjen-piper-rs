@@ -25,9 +25,14 @@ pub struct EspeakRsPhonemizer {
 }
 
 impl EspeakRsPhonemizer {
+    /// Clamped to at least 1: a capacity of 0 would make the underlying
+    /// channel a rendezvous point (`try_send` only succeeds when the
+    /// worker is already blocked in `recv()`), defeating the bounded-queue
+    /// design's intent of holding at least one pending job while the
+    /// worker is busy.
     pub fn new(queue_capacity: usize) -> Self {
         Self {
-            pool: PhonemizerWorkerPool::new(queue_capacity),
+            pool: PhonemizerWorkerPool::new(queue_capacity.max(1)),
         }
     }
 }
@@ -54,6 +59,13 @@ mod tests {
         let phonemizer = EspeakRsPhonemizer::default();
         let result = phonemizer.phonemize("test", "en-US").unwrap();
         assert!(!result.is_empty());
+    }
+
+    #[test]
+    fn a_capacity_of_zero_is_clamped_so_a_single_call_still_succeeds() {
+        let phonemizer = EspeakRsPhonemizer::new(0);
+        let result = phonemizer.phonemize("test", "en-US");
+        assert!(result.is_ok());
     }
 
     #[test]

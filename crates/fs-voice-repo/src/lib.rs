@@ -76,8 +76,26 @@ impl FsVoiceRepository {
     }
 }
 
+/// `voice_id` must resolve to exactly one plain path component — rejects
+/// empty strings, `.`, `..`, absolute paths, and any value containing a
+/// path separator. An absolute or `..`-laden `voice_id` would otherwise
+/// escape `base_dir` when joined (an absolute path makes `PathBuf::join`
+/// discard the base entirely; `..` walks out via normal OS resolution).
+fn is_safe_voice_id(voice_id: &str) -> bool {
+    matches!(
+        std::path::Path::new(voice_id)
+            .components()
+            .collect::<Vec<_>>()
+            .as_slice(),
+        [std::path::Component::Normal(_)]
+    )
+}
+
 impl VoiceRepository for FsVoiceRepository {
     fn load(&self, voice_id: &str) -> Result<Voice, VoiceLoadError> {
+        if !is_safe_voice_id(voice_id) {
+            return Err(VoiceLoadError::NotFound(voice_id.to_string()));
+        }
         let config_path = self.base_dir.join(format!("{voice_id}.onnx.json"));
         let file = std::fs::File::open(&config_path)
             .map_err(|_| VoiceLoadError::NotFound(voice_id.to_string()))?;
@@ -93,6 +111,44 @@ mod tests {
 
     fn write_config(dir: &std::path::Path, voice_id: &str, contents: &str) {
         std::fs::write(dir.join(format!("{voice_id}.onnx.json")), contents).unwrap();
+    }
+
+    #[test]
+    fn rejects_an_absolute_voice_id_instead_of_escaping_base_dir() {
+        let repo = FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-absolute"));
+
+        let result = repo.load("/etc/passwd");
+
+        assert_eq!(
+            result,
+            Err(VoiceLoadError::NotFound("/etc/passwd".to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_a_voice_id_containing_dot_dot_traversal() {
+        let repo =
+            FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-traversal"));
+
+        let result = repo.load("../../../etc/passwd");
+
+        assert_eq!(
+            result,
+            Err(VoiceLoadError::NotFound("../../../etc/passwd".to_string()))
+        );
+    }
+
+    #[test]
+    fn rejects_a_voice_id_containing_a_path_separator() {
+        let repo =
+            FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-separator"));
+
+        let result = repo.load("sub/voice");
+
+        assert_eq!(
+            result,
+            Err(VoiceLoadError::NotFound("sub/voice".to_string()))
+        );
     }
 
     #[test]
