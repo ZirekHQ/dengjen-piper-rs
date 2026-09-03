@@ -3,7 +3,11 @@
 #[macro_export]
 macro_rules! inference_engine_contract_tests {
     ($make:expr) => {
+        $crate::inference_engine_contract_tests!($make,);
+    };
+    ($make:expr, $(#[$attr:meta])*) => {
         #[test]
+        $(#[$attr])*
         fn validate_arity_does_not_panic_for_either_speaker_mode() {
             let engine = $make();
             let _ = engine.validate_arity(false);
@@ -11,6 +15,7 @@ macro_rules! inference_engine_contract_tests {
         }
 
         #[test]
+        $(#[$attr])*
         fn infer_returns_audio_with_a_positive_sample_rate_on_success() {
             let mut engine = $make();
             let ids = $crate::domain::phoneme::PhonemeIdSequence(vec![1, 2, 3]);
