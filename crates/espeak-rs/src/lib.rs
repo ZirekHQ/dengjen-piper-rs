@@ -9,14 +9,31 @@ use std::time::{Duration, Instant};
 const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
 const ESPEAKNG_DATA_DIR_NAME: &str = "espeak-ng-data";
 
+/// `Timeout` is split out from the catch-all `Failure` so a caller (see
+/// `dengjen-espeak-rs-adapter`, which maps this onto
+/// `piper_core::domain::errors::PhonemizationError`) can tell "the backend
+/// never responded" apart from every other failure, rather than having only
+/// an opaque message to pattern-match against.
 #[derive(Debug, Clone)]
-pub struct ESpeakError(pub String);
+pub enum ESpeakError {
+    Timeout(String),
+    Failure(String),
+}
+
+impl ESpeakError {
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, Self::Timeout(_))
+    }
+}
 
 impl std::error::Error for ESpeakError {}
 
 impl std::fmt::Display for ESpeakError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "eSpeak-ng error: {}", self.0)
+        match self {
+            Self::Timeout(msg) => write!(f, "eSpeak-ng error: {msg}"),
+            Self::Failure(msg) => write!(f, "eSpeak-ng error: {msg}"),
+        }
     }
 }
 
@@ -59,7 +76,7 @@ fn init_espeak() -> ESpeakResult<()> {
     };
 
     if sample_rate <= 0 {
-        Err(ESpeakError(format!(
+        Err(ESpeakError::Failure(format!(
             "Failed to initialize eSpeak-ng (code {sample_rate}). \
             Try setting `{PIPER_ESPEAKNG_DATA_DIRECTORY}` to the directory containing `{ESPEAKNG_DATA_DIR_NAME}`."
         )))
@@ -181,10 +198,12 @@ pub fn text_to_phonemes(
         .map_err(|e| e.clone())?;
 
     let lang_cstr = CString::new(language)
-        .map_err(|_| ESpeakError("Language name contains a null byte".into()))?;
+        .map_err(|_| ESpeakError::Failure("Language name contains a null byte".into()))?;
     let set_voice = unsafe { espeak_rs_sys::espeak_SetVoiceByName(lang_cstr.as_ptr()) };
     if set_voice != espeak_rs_sys::espeak_ERROR_EE_OK {
-        return Err(ESpeakError(format!("Failed to set voice: `{language}`")));
+        return Err(ESpeakError::Failure(format!(
+            "Failed to set voice: `{language}`"
+        )));
     }
 
     let phoneme_mode = match phoneme_separator {
@@ -200,15 +219,15 @@ pub fn text_to_phonemes(
     let started_at = Instant::now();
 
     for line in text.lines() {
-        let text_cstr =
-            CString::new(line).map_err(|_| ESpeakError("Text contains a null byte".into()))?;
+        let text_cstr = CString::new(line)
+            .map_err(|_| ESpeakError::Failure("Text contains a null byte".into()))?;
 
         // espeak advances this pointer clause by clause, setting it to null when done.
         let mut text_ptr: *const c_char = text_cstr.as_ptr();
 
         while !text_ptr.is_null() {
             if started_at.elapsed() > PHONEMIZATION_TIMEOUT {
-                return Err(ESpeakError(format!(
+                return Err(ESpeakError::Timeout(format!(
                     "Timed out phonemizing `{language}` text after {:?}",
                     PHONEMIZATION_TIMEOUT
                 )));
@@ -239,7 +258,7 @@ pub fn text_to_phonemes(
             let res = match call_result {
                 Ok(res) => res,
                 Err(_) => {
-                    return Err(ESpeakError(format!(
+                    return Err(ESpeakError::Failure(format!(
                         "espeak_TextToPhonemes panicked while phonemizing `{language}` text"
                     )));
                 }
@@ -249,7 +268,7 @@ pub fn text_to_phonemes(
             // cursor, which would otherwise spin this loop forever.
             if res.is_null() {
                 if !cursor_advanced(prev_text_ptr, text_ptr) {
-                    return Err(ESpeakError(format!(
+                    return Err(ESpeakError::Failure(format!(
                         "espeak_TextToPhonemes returned NULL without advancing past `{language}` text (stuck clause cursor)"
                     )));
                 }
@@ -269,7 +288,7 @@ pub fn text_to_phonemes(
             }
 
             if !cursor_advanced(prev_text_ptr, text_ptr) {
-                return Err(ESpeakError(format!(
+                return Err(ESpeakError::Failure(format!(
                     "espeak_TextToPhonemes did not advance past `{language}` text (stuck clause cursor)"
                 )));
             }
@@ -285,6 +304,17 @@ pub fn text_to_phonemes(
 }
 
 // ==============================
+
+#[cfg(test)]
+mod espeak_error_tests {
+    use super::*;
+
+    #[test]
+    fn is_timeout_true_only_for_the_timeout_variant() {
+        assert!(ESpeakError::Timeout("timed out".to_string()).is_timeout());
+        assert!(!ESpeakError::Failure("boom".to_string()).is_timeout());
+    }
+}
 
 #[cfg(test)]
 mod tests {

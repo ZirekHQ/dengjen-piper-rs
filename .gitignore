@@ -9,3 +9,4 @@ target/
 !tests/fixtures/*.json
 !crates/*/tests/fixtures/*.json
 /.idea/
+/analysis/

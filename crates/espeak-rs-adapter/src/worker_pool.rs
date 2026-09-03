@@ -74,7 +74,13 @@ impl PhonemizerWorkerPool {
             .map_err(|_| {
                 PhonemizationError::BackendFailure("worker thread disconnected".to_string())
             })?
-            .map_err(|e| PhonemizationError::BackendFailure(e.to_string()))
+            .map_err(|e| {
+                if e.is_timeout() {
+                    PhonemizationError::Timeout
+                } else {
+                    PhonemizationError::BackendFailure(e.to_string())
+                }
+            })
     }
 }
 
@@ -94,9 +100,9 @@ mod tests {
     }
 
     #[test]
-    fn phonemize_wraps_a_processor_error_as_backend_failure() {
+    fn phonemize_wraps_a_processor_failure_as_backend_failure() {
         let pool = PhonemizerWorkerPool::with_processor(4, |_text, _voice| {
-            Err(espeak_rs::ESpeakError("boom".to_string()))
+            Err(espeak_rs::ESpeakError::Failure("boom".to_string()))
         });
 
         let result = pool.phonemize("hello", "en-US");
@@ -104,6 +110,22 @@ mod tests {
         assert!(
             matches!(result, Err(PhonemizationError::BackendFailure(msg)) if msg.contains("boom"))
         );
+    }
+
+    /// Closes #52: a backend timeout must reach the caller as
+    /// `PhonemizationError::Timeout`, not fold into the same
+    /// `BackendFailure` bucket as every other backend error, so callers can
+    /// tell "never responded" apart from other failures (e.g. to map it onto
+    /// a distinct HTTP status downstream).
+    #[test]
+    fn phonemize_maps_a_processor_timeout_to_phonemization_timeout() {
+        let pool = PhonemizerWorkerPool::with_processor(4, |_text, _voice| {
+            Err(espeak_rs::ESpeakError::Timeout("timed out".to_string()))
+        });
+
+        let result = pool.phonemize("hello", "en-US");
+
+        assert!(matches!(result, Err(PhonemizationError::Timeout)));
     }
 
     #[test]
