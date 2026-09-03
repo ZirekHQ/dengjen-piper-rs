@@ -306,6 +306,7 @@ dependencies = [
  "dengjen-piper-core",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -321,6 +322,7 @@ dependencies = [
 name = "dengjen-piper-core"
 version = "0.1.0"
 dependencies = [
+ "dengjen-piper-core",
  "unicode-normalization",
 ]
 
@@ -329,12 +331,18 @@ name = "dengjen-piper-rs"
 version = "0.2.0"
 dependencies = [
  "dengjen-espeak-rs",
+ "dengjen-espeak-rs-adapter",
+ "dengjen-fs-voice-repo",
+ "dengjen-ort-adapter",
+ "dengjen-piper-core",
+ "dengjen-stub-adapter",
  "espeak-ng",
  "ndarray 0.16.1",
  "ort",
  "rodio",
  "serde",
  "serde_json",
+ "tempfile",
  "unicode-normalization",
 ]
 

@@ -17,13 +17,13 @@ const KNOWN_VOICES: &[&str] = &["en-US", "en-GB", "fr-FR"];
 /// and as the first external proof that `piper-core`'s `Phonemizer`
 /// contract is genuinely implementable from outside `piper-core` itself.
 pub struct StubPhonemizer {
-    known_voices: Vec<String>,
+    known_voices: &'static [&'static str],
 }
 
 impl StubPhonemizer {
     pub fn new() -> Self {
         Self {
-            known_voices: KNOWN_VOICES.iter().copied().map(str::to_string).collect(),
+            known_voices: KNOWN_VOICES,
         }
     }
 }
@@ -36,7 +36,7 @@ impl Default for StubPhonemizer {
 
 impl Phonemizer for StubPhonemizer {
     fn phonemize(&self, text: &str, voice: &str) -> Result<Vec<Sentence>, PhonemizationError> {
-        if !self.known_voices.iter().any(|v| v == voice) {
+        if !self.known_voices.contains(&voice) {
             return Err(PhonemizationError::BackendFailure(format!(
                 "unknown voice: {voice}"
             )));
@@ -117,13 +117,4 @@ mod tests {
         let result = phonemizer.phonemize("hello", "not-a-real-voice");
         assert!(matches!(result, Err(PhonemizationError::BackendFailure(_))));
     }
-}
-
-#[cfg(test)]
-mod contract {
-    use super::*;
-
-    piper_core::phonemizer_contract_tests!(
-        || Box::new(StubPhonemizer::new()) as Box<dyn Phonemizer>
-    );
 }

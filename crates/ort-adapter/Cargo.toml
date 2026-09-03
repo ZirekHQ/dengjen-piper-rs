@@ -10,3 +10,6 @@ edition = "2024"
 piper-core = { path = "../piper-core", package = "dengjen-piper-core" }
 ndarray = "0.16.1"
 ort = { version = "=2.0.0-rc.12" }
+
+[dev-dependencies]
+piper-core = { path = "../piper-core", package = "dengjen-piper-core", features = ["testing"] }
