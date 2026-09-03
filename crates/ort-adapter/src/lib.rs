@@ -28,10 +28,7 @@ struct InputTensors {
 /// `ort::inputs!`. `params.speaker_id.is_some()` is the sole signal for
 /// whether a 4th (speaker-id) tensor is built — this adapter never
 /// re-derives that decision from a voice's `num_speakers` itself.
-fn build_input_tensors(
-    ids: &PhonemeIdSequence,
-    params: &ResolvedInferenceParams,
-) -> InputTensors {
+fn build_input_tensors(ids: &PhonemeIdSequence, params: &ResolvedInferenceParams) -> InputTensors {
     let input_len = ids.0.len();
     let input_arr = Array2::<i64>::from_shape_vec((1, input_len), ids.0.clone())
         .expect("phoneme id array has exactly (1, input_len) elements by construction");
