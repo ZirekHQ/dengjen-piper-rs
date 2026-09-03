@@ -17,18 +17,18 @@ use piper_core::ports::inference_engine::InferenceEngine;
 /// The tensors one inference call needs, before they're handed to
 /// `ort::inputs!`. Pure and session-free, so its shape-construction logic
 /// is unit-testable without a live ONNX Runtime session or model file.
-pub struct InputTensors {
-    pub input: Tensor<i64>,
-    pub input_lengths: Tensor<i64>,
-    pub scales: Tensor<f32>,
-    pub speaker_id: Option<Tensor<i64>>,
+struct InputTensors {
+    input: Tensor<i64>,
+    input_lengths: Tensor<i64>,
+    scales: Tensor<f32>,
+    speaker_id: Option<Tensor<i64>>,
 }
 
 /// Builds the tensors `OrtInferenceEngine::infer` will pass to
 /// `ort::inputs!`. `params.speaker_id.is_some()` is the sole signal for
 /// whether a 4th (speaker-id) tensor is built — this adapter never
 /// re-derives that decision from a voice's `num_speakers` itself.
-pub fn build_input_tensors(
+fn build_input_tensors(
     ids: &PhonemeIdSequence,
     params: &ResolvedInferenceParams,
 ) -> InputTensors {

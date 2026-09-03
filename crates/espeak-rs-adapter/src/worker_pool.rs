@@ -63,9 +63,12 @@ impl PhonemizerWorkerPool {
             voice: voice.to_string(),
             respond_to,
         };
-        self.sender
-            .try_send(job)
-            .map_err(|_| PhonemizationError::QueueFull)?;
+        self.sender.try_send(job).map_err(|e| match e {
+            mpsc::TrySendError::Full(_) => PhonemizationError::QueueFull,
+            mpsc::TrySendError::Disconnected(_) => {
+                PhonemizationError::BackendFailure("worker thread disconnected".to_string())
+            }
+        })?;
         response
             .recv()
             .map_err(|_| {

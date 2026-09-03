@@ -11,7 +11,7 @@ fn loads_the_real_fr_fr_tom_medium_fixture() {
         .expect("real fixture should parse");
 
     assert_eq!(voice.voice_id, "fr_FR-tom-medium");
-    assert_eq!(voice.espeak_voice.is_empty(), false);
+    assert!(!voice.espeak_voice.is_empty());
     assert!(
         !voice.phoneme_id_map.is_empty(),
         "real fixture should carry a non-empty phoneme_id_map"
