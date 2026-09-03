@@ -1,0 +1,11 @@
+[package]
+name = "dengjen-espeak-rs-adapter"
+version = "0.1.0"
+license = "GPL-3.0-or-later"
+description = "espeak-rs-backed Phonemizer adapter for dengjen-piper-rs, with a bounded phonemization worker queue"
+repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
+edition = "2024"
+
+[dependencies]
+piper-core = { path = "../piper-core", package = "dengjen-piper-core" }
+espeak-rs = { path = "../espeak-rs", package = "dengjen-espeak-rs" }
