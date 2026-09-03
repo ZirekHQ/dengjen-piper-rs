@@ -18,9 +18,14 @@ use piper_core::ports::inference_engine::InferenceEngine;
 /// `ort::inputs!`. Pure and session-free, so its shape-construction logic
 /// is unit-testable without a live ONNX Runtime session or model file.
 struct InputTensors {
+    /// Phoneme IDs, shape `(1, input_len)`.
     input: Tensor<i64>,
+    /// `input`'s sequence length, shape `(1,)`.
     input_lengths: Tensor<i64>,
+    /// `[noise_scale, length_scale, noise_w]`, shape `(3,)`.
     scales: Tensor<f32>,
+    /// Present only when `ResolvedInferenceParams::speaker_id` is `Some`,
+    /// shape `(1,)`.
     speaker_id: Option<Tensor<i64>>,
 }
 

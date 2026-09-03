@@ -8,3 +8,6 @@ edition = "2024"
 
 [dependencies]
 piper-core = { path = "../piper-core", package = "dengjen-piper-core" }
+
+[dev-dependencies]
+piper-core = { path = "../piper-core", package = "dengjen-piper-core", features = ["testing"] }

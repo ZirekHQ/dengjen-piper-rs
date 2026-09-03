@@ -25,11 +25,12 @@ pub struct EspeakRsPhonemizer {
 }
 
 impl EspeakRsPhonemizer {
-    /// Clamped to at least 1: a capacity of 0 would make the underlying
-    /// channel a rendezvous point (`try_send` only succeeds when the
-    /// worker is already blocked in `recv()`), defeating the bounded-queue
-    /// design's intent of holding at least one pending job while the
-    /// worker is busy.
+    /// Creates a phonemizer whose worker queue holds `queue_capacity`
+    /// pending jobs, clamped to at least 1: a capacity of 0 would make the
+    /// underlying channel a rendezvous point (`try_send` only succeeds when
+    /// the worker is already blocked in `recv()`), defeating the
+    /// bounded-queue design's intent of holding at least one pending job
+    /// while the worker is busy.
     pub fn new(queue_capacity: usize) -> Self {
         Self {
             pool: PhonemizerWorkerPool::new(queue_capacity.max(1)),
@@ -37,6 +38,7 @@ impl EspeakRsPhonemizer {
     }
 }
 
+/// Builds with `DEFAULT_QUEUE_CAPACITY`.
 impl Default for EspeakRsPhonemizer {
     fn default() -> Self {
         Self::new(DEFAULT_QUEUE_CAPACITY)
@@ -106,13 +108,4 @@ mod tests {
         let result = phonemizer.phonemize("test", "en-US");
         assert!(result.is_ok());
     }
-}
-
-#[cfg(test)]
-mod contract {
-    use super::*;
-
-    piper_core::phonemizer_contract_tests!(
-        || Box::new(EspeakRsPhonemizer::default()) as Box<dyn Phonemizer>
-    );
 }

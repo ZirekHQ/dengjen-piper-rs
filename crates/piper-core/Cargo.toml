@@ -8,3 +8,6 @@ edition = "2024"
 
 [dependencies]
 unicode-normalization = "0.1"
+
+[features]
+testing = []

@@ -11,7 +11,7 @@ use std::path::PathBuf;
 
 use piper_core::domain::errors::VoiceLoadError;
 use piper_core::domain::phoneme::PhonemeIdMap;
-use piper_core::domain::voice::{AudioConfig, InferenceDefaults, SpeakerMap, Voice};
+use piper_core::domain::voice::{AudioConfig, InferenceDefaults, Voice};
 use piper_core::ports::voice_repository::VoiceRepository;
 use serde::Deserialize;
 
@@ -57,7 +57,7 @@ fn raw_config_to_voice(voice_id: &str, raw: RawModelConfig) -> Voice {
             noise_w: raw.inference.noise_w,
         },
         num_speakers: raw.num_speakers,
-        speaker_map: raw.speaker_id_map as SpeakerMap,
+        speaker_map: raw.speaker_id_map,
         phoneme_id_map: raw.phoneme_id_map,
         espeak_voice: raw.espeak.voice,
     }
@@ -104,8 +104,13 @@ impl VoiceRepository for FsVoiceRepository {
             return Err(VoiceLoadError::NotFound(voice_id.to_string()));
         }
         let config_path = self.base_dir.join(format!("{voice_id}.onnx.json"));
-        let file = std::fs::File::open(&config_path)
-            .map_err(|_| VoiceLoadError::NotFound(voice_id.to_string()))?;
+        let file = std::fs::File::open(&config_path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                VoiceLoadError::NotFound(voice_id.to_string())
+            } else {
+                VoiceLoadError::IoFailure(e.to_string())
+            }
+        })?;
         let raw: RawModelConfig = serde_json::from_reader(file)
             .map_err(|e| VoiceLoadError::MalformedConfig(e.to_string()))?;
         Ok(raw_config_to_voice(voice_id, raw))
@@ -122,7 +127,8 @@ mod tests {
 
     #[test]
     fn rejects_an_absolute_voice_id_instead_of_escaping_base_dir() {
-        let repo = FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-absolute"));
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let result = repo.load("/etc/passwd");
 
@@ -134,8 +140,8 @@ mod tests {
 
     #[test]
     fn rejects_a_voice_id_containing_dot_dot_traversal() {
-        let repo =
-            FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-traversal"));
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let result = repo.load("../../../etc/passwd");
 
@@ -153,8 +159,8 @@ mod tests {
 
     #[test]
     fn rejects_a_voice_id_containing_a_path_separator() {
-        let repo =
-            FsVoiceRepository::new(std::env::temp_dir().join("fs-voice-repo-test-separator"));
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let result = repo.load("sub/voice");
 
@@ -166,13 +172,11 @@ mod tests {
 
     #[test]
     fn returns_not_found_for_a_missing_config_file() {
-        let tmp = std::env::temp_dir().join("fs-voice-repo-test-missing");
-        std::fs::create_dir_all(&tmp).unwrap();
-        let repo = FsVoiceRepository::new(&tmp);
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let result = repo.load("does-not-exist");
 
-        std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(
             result,
             Err(VoiceLoadError::NotFound("does-not-exist".to_string()))
@@ -181,23 +185,47 @@ mod tests {
 
     #[test]
     fn returns_malformed_config_for_invalid_json() {
-        let tmp = std::env::temp_dir().join("fs-voice-repo-test-malformed");
-        std::fs::create_dir_all(&tmp).unwrap();
-        write_config(&tmp, "bad-voice", "{ not valid json");
-        let repo = FsVoiceRepository::new(&tmp);
+        let tmp = tempfile::tempdir().unwrap();
+        write_config(tmp.path(), "bad-voice", "{ not valid json");
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let result = repo.load("bad-voice");
 
-        std::fs::remove_dir_all(&tmp).ok();
         assert!(matches!(result, Err(VoiceLoadError::MalformedConfig(_))));
     }
 
     #[test]
+    #[cfg(unix)]
+    fn returns_io_failure_for_a_config_file_unreadable_due_to_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        write_config(tmp.path(), "locked-voice", "{}");
+        let config_path = tmp.path().join("locked-voice.onnx.json");
+        std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Root (and some container filesystems) ignores permission bits, so
+        // the NotFound/IoFailure distinction can't be observed there.
+        let running_as_root = std::fs::File::open(&config_path).is_ok();
+
+        let result = if running_as_root {
+            None
+        } else {
+            let repo = FsVoiceRepository::new(tmp.path());
+            Some(repo.load("locked-voice"))
+        };
+
+        std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        if let Some(result) = result {
+            assert!(matches!(result, Err(VoiceLoadError::IoFailure(_))));
+        }
+    }
+
+    #[test]
     fn loads_a_single_speaker_voice_from_a_valid_config() {
-        let tmp = std::env::temp_dir().join("fs-voice-repo-test-valid-single");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
         write_config(
-            &tmp,
+            tmp.path(),
             "test-voice",
             r#"{
                 "audio": { "sample_rate": 22050 },
@@ -208,11 +236,10 @@ mod tests {
                 "phoneme_id_map": { "a": [10] }
             }"#,
         );
-        let repo = FsVoiceRepository::new(&tmp);
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let voice = repo.load("test-voice").unwrap();
 
-        std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(voice.voice_id, "test-voice");
         assert_eq!(voice.audio.sample_rate, 22050);
         assert_eq!(voice.espeak_voice, "en-US");
@@ -224,10 +251,9 @@ mod tests {
 
     #[test]
     fn loads_a_multi_speaker_voice_with_named_speakers() {
-        let tmp = std::env::temp_dir().join("fs-voice-repo-test-valid-multi");
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
         write_config(
-            &tmp,
+            tmp.path(),
             "multi-voice",
             r#"{
                 "audio": { "sample_rate": 16000 },
@@ -238,11 +264,10 @@ mod tests {
                 "phoneme_id_map": {}
             }"#,
         );
-        let repo = FsVoiceRepository::new(&tmp);
+        let repo = FsVoiceRepository::new(tmp.path());
 
         let voice = repo.load("multi-voice").unwrap();
 
-        std::fs::remove_dir_all(&tmp).ok();
         assert_eq!(voice.num_speakers, 2);
         let speakers = voice
             .speakers()

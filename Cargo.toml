@@ -21,6 +21,12 @@ unicode-normalization = "0.1"
 
 [dev-dependencies]
 rodio = "0.22"
+piper-core = { path = "crates/piper-core", package = "dengjen-piper-core" }
+fs-voice-repo = { path = "crates/fs-voice-repo", package = "dengjen-fs-voice-repo" }
+stub-adapter = { path = "crates/stub-adapter", package = "dengjen-stub-adapter" }
+ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter" }
+espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter" }
+tempfile = "3.13"
 
 [features]
 default = ["espeak-rs", "compile-espeak-intonations"]

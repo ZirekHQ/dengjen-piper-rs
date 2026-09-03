@@ -6,6 +6,7 @@ pub enum VoiceLoadError {
     NotFound(String),
     MalformedConfig(String),
     ModelLoadFailure(String),
+    IoFailure(String),
 }
 
 impl fmt::Display for VoiceLoadError {
@@ -14,6 +15,7 @@ impl fmt::Display for VoiceLoadError {
             Self::NotFound(id) => write!(f, "voice not found: {id}"),
             Self::MalformedConfig(msg) => write!(f, "malformed voice config: {msg}"),
             Self::ModelLoadFailure(msg) => write!(f, "failed to load model: {msg}"),
+            Self::IoFailure(msg) => write!(f, "voice config i/o failure: {msg}"),
         }
     }
 }
