@@ -40,6 +40,18 @@ jobs:
         # in Cargo.toml (Cargo never tests a build script otherwise); run it
         # explicitly since `-p dengjen-espeak-rs-sys` isn't exercised by any other step.
         run: cargo test -p dengjen-espeak-rs-sys --test build_script_unit_tests
+      - name: cargo test (dengjen-piper-core)
+        run: cargo test -p dengjen-piper-core
+      - name: cargo test (dengjen-stub-adapter)
+        run: cargo test -p dengjen-stub-adapter
+      - name: cargo test (dengjen-fs-voice-repo)
+        run: cargo test -p dengjen-fs-voice-repo
+      - name: cargo test (dengjen-ort-adapter)
+        run: cargo test -p dengjen-ort-adapter
+      - name: cargo test (dengjen-espeak-rs-adapter, single-threaded)
+        # Same espeak-ng global-state constraint as dengjen-espeak-rs above:
+        # this adapter drives the same non-thread-safe voice-table state.
+        run: cargo test -p dengjen-espeak-rs-adapter -- --test-threads=1
       - name: check ru_listx dictionary is packaged (#23)
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
