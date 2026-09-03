@@ -9,8 +9,5 @@ edition = "2024"
 [dependencies]
 unicode-normalization = "0.1"
 
-[dev-dependencies]
-dengjen-piper-core = { path = ".", features = ["testing"] }
-
 [features]
 testing = []

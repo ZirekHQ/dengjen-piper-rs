@@ -16,37 +16,84 @@
 //!
 //!     cargo run --example hexagonal_pipeline [path/to/voice.onnx]
 
-use dengjen_espeak_rs_adapter::EspeakRsPhonemizer;
-use dengjen_fs_voice_repo::FsVoiceRepository;
-use dengjen_ort_adapter::OrtInferenceEngine;
-use dengjen_stub_adapter::StubPhonemizer;
+use std::collections::BTreeMap;
+
+use espeak_rs_adapter::EspeakRsPhonemizer;
+use fs_voice_repo::FsVoiceRepository;
+use ort_adapter::OrtInferenceEngine;
 use piper_core::domain::inference::InferenceOverrides;
+use piper_core::domain::phoneme::{BOS, EOS, PAD};
 use piper_core::ports::phonemizer::Phonemizer;
 use piper_core::ports::voice_repository::VoiceRepository;
 use piper_core::registry::VoiceRegistry;
 use piper_core::use_cases::load_voice::LoadVoice;
 use piper_core::use_cases::phonemize::Phonemize;
 use piper_core::use_cases::synthesize::Synthesize;
+use stub_adapter::StubPhonemizer;
+use unicode_normalization::UnicodeNormalization;
 
 const VOICE_ID: &str = "demo-voice";
+const ESPEAK_VOICE: &str = "en-US";
 const TEXT: &str = "Hello world. This is piper-rs.";
 
+/// Builds a `phoneme_id_map` covering every phoneme this run will actually
+/// need: the `^`/`_`/`$` sentinels plus every character `encode_phonemes`
+/// will see once it NFD-normalizes `phonemes`. Hardcoding a fixed IPA
+/// table here would silently drift from whatever the installed espeak-ng
+/// backend emits; deriving it from the real phonemizer output guarantees
+/// `Synthesize` never falls back to a dropped phoneme or a zero id.
+fn phoneme_id_map_for(phonemes: &str) -> BTreeMap<char, Vec<i64>> {
+    let mut map = BTreeMap::new();
+    map.insert(PAD, vec![0]);
+    map.insert(BOS, vec![1]);
+    map.insert(EOS, vec![2]);
+
+    let mut next_id = 3i64;
+    for ch in phonemes.nfd() {
+        map.entry(ch).or_insert_with(|| {
+            let id = next_id;
+            next_id += 1;
+            vec![id]
+        });
+    }
+    map
+}
+
 /// A minimal but valid `<voice_id>.onnx.json` — the same schema
-/// `FsVoiceRepository` expects from a real Piper voice distribution.
-const VOICE_CONFIG: &str = r#"{
-    "audio": { "sample_rate": 22050 },
-    "espeak": { "voice": "en-US" },
-    "inference": { "noise_scale": 0.667, "length_scale": 1.0, "noise_w": 0.8 },
-    "num_speakers": 1,
-    "speaker_id_map": {},
-    "phoneme_id_map": { "h": [5], "e": [6], "l": [7], "o": [8], "w": [9] }
-}"#;
+/// `FsVoiceRepository` expects from a real Piper voice distribution, with
+/// `phoneme_id_map` filled in from `phoneme_id_map_for`.
+fn voice_config(phoneme_id_map: &BTreeMap<char, Vec<i64>>) -> String {
+    serde_json::json!({
+        "audio": { "sample_rate": 22050 },
+        "espeak": { "voice": ESPEAK_VOICE },
+        "inference": { "noise_scale": 0.667, "length_scale": 1.0, "noise_w": 0.8 },
+        "num_speakers": 1,
+        "speaker_id_map": {},
+        "phoneme_id_map": phoneme_id_map,
+    })
+    .to_string()
+}
 
 fn main() {
+    let espeak_phonemizer = EspeakRsPhonemizer::default();
+
+    // Phonemize up front so the voice config's phoneme_id_map can be built
+    // from what espeak-ng actually emits for TEXT, rather than a hand-typed
+    // guess that might not match this backend's version.
+    let espeak_sentences = espeak_phonemizer
+        .phonemize(TEXT, ESPEAK_VOICE)
+        .expect("phonemize with the real espeak-ng backend");
+    let joined_phonemes = espeak_sentences
+        .iter()
+        .map(|s| s.0.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let phoneme_id_map = phoneme_id_map_for(&joined_phonemes);
+
     let voice_dir = tempfile::tempdir().expect("create temp voice dir");
     std::fs::write(
         voice_dir.path().join(format!("{VOICE_ID}.onnx.json")),
-        VOICE_CONFIG,
+        voice_config(&phoneme_id_map),
     )
     .expect("write demo voice config");
 
@@ -71,12 +118,6 @@ fn main() {
     .expect("phonemize with the dependency-free stub backend");
     println!("StubPhonemizer:     {stub_sentences:?}");
 
-    let espeak_phonemizer = EspeakRsPhonemizer::default();
-    let espeak_sentences = Phonemize {
-        phonemizer: &espeak_phonemizer,
-    }
-    .execute(&registry, VOICE_ID, TEXT)
-    .expect("phonemize with the real espeak-ng backend");
     println!("EspeakRsPhonemizer:  {espeak_sentences:?}");
 
     // Port: InferenceEngine. Needs a real .onnx model; without one, stop
@@ -109,6 +150,13 @@ fn main() {
     }
     .execute(&registry, VOICE_ID, TEXT, InferenceOverrides::default())
     .expect("synthesize audio");
+
+    assert!(
+        outcome.warnings.is_empty(),
+        "demo voice config's phoneme_id_map should cover every phoneme in \
+         TEXT by construction, but got warnings: {:?}",
+        outcome.warnings
+    );
 
     println!(
         "\nSynthesized {} sample(s) at {} Hz ({} warning(s))",

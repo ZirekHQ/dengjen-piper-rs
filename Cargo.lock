@@ -322,7 +322,6 @@ dependencies = [
 name = "dengjen-piper-core"
 version = "0.1.0"
 dependencies = [
- "dengjen-piper-core",
  "unicode-normalization",
 ]
 
