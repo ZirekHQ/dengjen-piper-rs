@@ -10,3 +10,4 @@ target/
 !crates/*/tests/fixtures/*.json
 /.idea/
 /analysis/
+/.worktrees/
