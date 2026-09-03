@@ -109,6 +109,25 @@ fn locate_espeak_data() -> Option<PathBuf> {
     None
 }
 
+/// Fails with [`ESpeakError::Timeout`] once `elapsed` exceeds `timeout`.
+///
+/// Called both before and after each `espeak_TextToPhonemesWithTerminator`
+/// call in [`text_to_phonemes`]'s loop: the pre-call check bounds how many
+/// more calls are attempted, but a call that's merely slow (not hung) can
+/// itself push `elapsed` past `timeout` while it runs, so the deadline must
+/// be rechecked after the call returns and before its result is accepted -
+/// otherwise a slow-but-not-hung final call would return `Ok` despite
+/// overshooting the budget (see #60).
+fn check_deadline(elapsed: Duration, timeout: Duration, language: &str) -> ESpeakResult<()> {
+    if elapsed > timeout {
+        Err(ESpeakError::Timeout(format!(
+            "Timed out phonemizing `{language}` text after {timeout:?}"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
 /// Per the espeak-ng API contract, `espeak_TextToPhonemes` must either
 /// advance the clause cursor past the consumed text or set it to NULL to
 /// signal end-of-input. If neither happens, further calls would spin the
@@ -226,12 +245,7 @@ pub fn text_to_phonemes(
         let mut text_ptr: *const c_char = text_cstr.as_ptr();
 
         while !text_ptr.is_null() {
-            if started_at.elapsed() > PHONEMIZATION_TIMEOUT {
-                return Err(ESpeakError::Timeout(format!(
-                    "Timed out phonemizing `{language}` text after {:?}",
-                    PHONEMIZATION_TIMEOUT
-                )));
-            }
+            check_deadline(started_at.elapsed(), PHONEMIZATION_TIMEOUT, language)?;
 
             let prev_text_ptr = text_ptr;
             let text_ptr_slot = &mut text_ptr as *mut *const c_char as *mut *const c_void;
@@ -263,6 +277,14 @@ pub fn text_to_phonemes(
                     )));
                 }
             };
+
+            // Recheck after the call returns, before accepting its result:
+            // a call that's merely slow (not hung) can itself push elapsed
+            // time past the deadline, and if that happens on the clause
+            // that advances the cursor to null, the loop below would
+            // otherwise exit normally and this function would return `Ok`
+            // despite overshooting the budget (see #60).
+            check_deadline(started_at.elapsed(), PHONEMIZATION_TIMEOUT, language)?;
 
             // Guard against espeak returning NULL without advancing its
             // cursor, which would otherwise spin this loop forever.
@@ -313,6 +335,30 @@ mod espeak_error_tests {
     fn is_timeout_true_only_for_the_timeout_variant() {
         assert!(ESpeakError::Timeout("timed out".to_string()).is_timeout());
         assert!(!ESpeakError::Failure("boom".to_string()).is_timeout());
+    }
+}
+
+#[cfg(test)]
+mod deadline_tests {
+    use super::*;
+
+    #[test]
+    fn errs_when_elapsed_exceeds_timeout() {
+        let result = check_deadline(Duration::from_secs(6), Duration::from_secs(5), "en-US");
+        assert!(matches!(result, Err(ESpeakError::Timeout(_))));
+    }
+
+    #[test]
+    fn ok_when_elapsed_is_within_timeout() {
+        let result = check_deadline(Duration::from_secs(4), Duration::from_secs(5), "en-US");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn ok_when_elapsed_equals_timeout_exactly() {
+        // Matches the loop's `>` comparison: equality is not yet a timeout.
+        let result = check_deadline(Duration::from_secs(5), Duration::from_secs(5), "en-US");
+        assert!(result.is_ok());
     }
 }
 
