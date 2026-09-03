@@ -81,14 +81,21 @@ impl FsVoiceRepository {
 /// path separator. An absolute or `..`-laden `voice_id` would otherwise
 /// escape `base_dir` when joined (an absolute path makes `PathBuf::join`
 /// discard the base entirely; `..` walks out via normal OS resolution).
+///
+/// The raw-string separator check runs first because `Path::components()`
+/// normalizes away trailing separators (`"foo/"` collapses to the single
+/// component `Normal("foo")`), which would otherwise let a trailing slash
+/// pass despite `load()` joining the raw, unnormalized `voice_id`.
 fn is_safe_voice_id(voice_id: &str) -> bool {
-    matches!(
-        std::path::Path::new(voice_id)
-            .components()
-            .collect::<Vec<_>>()
-            .as_slice(),
-        [std::path::Component::Normal(_)]
-    )
+    !voice_id.contains('/')
+        && !voice_id.contains('\\')
+        && matches!(
+            std::path::Path::new(voice_id)
+                .components()
+                .collect::<Vec<_>>()
+                .as_slice(),
+            [std::path::Component::Normal(_)]
+        )
 }
 
 impl VoiceRepository for FsVoiceRepository {
@@ -136,6 +143,12 @@ mod tests {
             result,
             Err(VoiceLoadError::NotFound("../../../etc/passwd".to_string()))
         );
+    }
+
+    #[test]
+    fn rejects_a_voice_id_with_a_trailing_separator() {
+        assert!(!is_safe_voice_id("foo/"));
+        assert!(!is_safe_voice_id("foo//"));
     }
 
     #[test]
