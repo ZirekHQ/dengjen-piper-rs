@@ -23,7 +23,7 @@ pub struct StubPhonemizer {
 impl StubPhonemizer {
     pub fn new() -> Self {
         Self {
-            known_voices: KNOWN_VOICES.iter().map(|s| s.to_string()).collect(),
+            known_voices: KNOWN_VOICES.iter().copied().map(str::to_string).collect(),
         }
     }
 }
