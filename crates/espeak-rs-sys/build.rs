@@ -237,14 +237,12 @@ fn extract_lib_names(out_dir: &Path, build_shared_libs: bool, target_os: &str) -
 
     let mut lib_names: Vec<String> = Vec::new();
 
-    // Process the libraries based on the pattern
     for entry in glob(pattern.to_str().unwrap()).unwrap() {
         match entry {
             Ok(path) => {
                 let stem = path.file_stem().unwrap();
                 let stem_str = stem.to_str().unwrap();
 
-                // Remove the "lib" prefix if present
                 let lib_name = if stem_str.starts_with("lib") {
                     stem_str.strip_prefix("lib").unwrap_or(stem_str)
                 } else {
@@ -1073,7 +1071,6 @@ fn main() {
         .generate()
         .expect("Failed to generate bindings");
 
-    // Write the generated bindings to an output file
     let bindings_path = out_dir.join("bindings.rs");
     bindings
         .write_to_file(bindings_path)

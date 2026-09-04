@@ -210,7 +210,6 @@ pub fn text_to_phonemes(
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    // Ensure the library is initialised exactly once.
     ESPEAK_INIT
         .get_or_init(init_espeak)
         .as_ref()
