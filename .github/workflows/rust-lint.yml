@@ -87,3 +87,66 @@ jobs:
           # Licenses/bans/sources are cheap and don't need a full build. Advisories are also
           # covered by the separate `rustsec/audit-check` job above (kept as belt-and-braces).
           command: check licenses bans sources
+
+  # Mirrors CI.yml's `test` job's invocations exactly, but under cargo-llvm-cov
+  # instrumentation, so the Cobertura report reflects the same crates/features
+  # that job actually exercises. Each `cargo test` step there becomes a
+  # `--no-report` llvm-cov run so profiling data accumulates across the
+  # mutually-exclusive feature combinations (espeak-rs vs espeak-ng) and the
+  # single-threaded espeak-ng crates, then a final `report` step renders the
+  # combined Cobertura XML.
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      code-quality: write
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install libclang, espeak-ng, and alsa
+        # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
+        # not by dengjen-piper-rs itself.
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@b6b84cf49ebfe0176417bdce007c624f0db37f20 # v2.86.2
+        with:
+          tool: cargo-llvm-cov
+      - name: cargo llvm-cov (dengjen-piper-rs, default features, espeak-rs backend)
+        run: cargo llvm-cov --no-report -p dengjen-piper-rs
+      - name: cargo llvm-cov (dengjen-espeak-rs, single-threaded)
+        # espeak-ng's global voice-table state isn't thread-safe; the default
+        # parallel test runner corrupts it and segfaults (SIGSEGV). Same
+        # mitigation CI.yml's test job uses for this crate.
+        run: cargo llvm-cov --no-report -p dengjen-espeak-rs -- --test-threads=1
+      - name: cargo llvm-cov (dengjen-piper-rs, espeak-ng backend, espeak-rs disabled)
+        # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
+        # so each needs its own run rather than a single --all-features build.
+        run: cargo llvm-cov --no-report -p dengjen-piper-rs --no-default-features --features espeak-ng
+      - name: cargo llvm-cov (dengjen-espeak-rs-sys, build script unit tests)
+        run: cargo llvm-cov --no-report -p dengjen-espeak-rs-sys --test build_script_unit_tests
+      - name: cargo llvm-cov (dengjen-piper-core)
+        run: cargo llvm-cov --no-report -p dengjen-piper-core
+      - name: cargo llvm-cov (dengjen-stub-adapter)
+        run: cargo llvm-cov --no-report -p dengjen-stub-adapter
+      - name: cargo llvm-cov (dengjen-fs-voice-repo)
+        run: cargo llvm-cov --no-report -p dengjen-fs-voice-repo
+      - name: cargo llvm-cov (dengjen-ort-adapter)
+        run: cargo llvm-cov --no-report -p dengjen-ort-adapter
+      - name: cargo llvm-cov (dengjen-espeak-rs-adapter, single-threaded)
+        # Same espeak-ng global-state constraint as dengjen-espeak-rs above.
+        run: cargo llvm-cov --no-report -p dengjen-espeak-rs-adapter -- --test-threads=1
+      - name: cargo llvm-cov report
+        run: cargo llvm-cov report --cobertura --output-path cobertura.xml
+      - name: upload coverage report
+        uses: actions/upload-code-coverage@1c15be36fc3733ba839b1dd643bd9556e4426dc1 # v1
+        with:
+          file: cobertura.xml
+          language: Rust
+          label: code-coverage/rust
