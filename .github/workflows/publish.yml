@@ -28,6 +28,14 @@ jobs:
         with:
           toolchain: stable
 
+      # The raw espeak-ng submodule tree gzips past crates.io's 10MiB .crate
+      # cap, and cargo's .crate container is hardcoded to gzip -- so the data
+      # is pre-compressed with xz into bundled/espeak-ng.tar.xz (not
+      # committed; see crates/espeak-rs-sys/.gitignore) and build.rs
+      # decompresses it at build time. See scripts/bundle-espeak-ng.sh.
+      - name: bundle espeak-ng data for publish
+        run: bash crates/espeak-rs-sys/scripts/bundle-espeak-ng.sh
+
       # Tiered because each crate depends on the previous one by version: a publish
       # only becomes resolvable to its dependent once crates.io's index (not just the
       # publish API response) has actually picked it up, hence the wait step per tier.
