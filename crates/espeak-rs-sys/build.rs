@@ -870,9 +870,10 @@ mod tests {
         assert!(!espeak_src.exists());
         assert!(!bundle_path.exists());
 
-        let panicked =
-            catch_unwind(AssertUnwindSafe(|| resolve_espeak_ng_source(&espeak_src, &bundle_path)))
-                .is_err();
+        let panicked = catch_unwind(AssertUnwindSafe(|| {
+            resolve_espeak_ng_source(&espeak_src, &bundle_path)
+        }))
+        .is_err();
 
         assert!(panicked);
     }
@@ -932,11 +933,19 @@ mod tests {
         assert!(!bundle_path.exists());
         assert!(!dst.exists());
 
-        let panicked =
-            catch_unwind(AssertUnwindSafe(|| extract_xz_tar_bundle(&bundle_path, &dst))).is_err();
+        let panicked = catch_unwind(AssertUnwindSafe(|| {
+            extract_xz_tar_bundle(&bundle_path, &dst)
+        }))
+        .is_err();
 
-        assert!(panicked, "extract_xz_tar_bundle should panic when the bundle is missing");
-        assert!(!dst.exists(), "a failed extraction must not leave the destination behind");
+        assert!(
+            panicked,
+            "extract_xz_tar_bundle should panic when the bundle is missing"
+        );
+        assert!(
+            !dst.exists(),
+            "a failed extraction must not leave the destination behind"
+        );
     }
 
     #[test]
@@ -945,14 +954,19 @@ mod tests {
         let dst = scratch_path("extract-corrupt-bundle-dst");
         std::fs::write(&bundle_path, b"not a valid xz stream").unwrap();
 
-        let panicked =
-            catch_unwind(AssertUnwindSafe(|| extract_xz_tar_bundle(&bundle_path, &dst))).is_err();
+        let panicked = catch_unwind(AssertUnwindSafe(|| {
+            extract_xz_tar_bundle(&bundle_path, &dst)
+        }))
+        .is_err();
 
         assert!(
             panicked,
             "extract_xz_tar_bundle should panic when the bundle isn't a valid xz stream"
         );
-        assert!(!dst.exists(), "a failed extraction must not leave the destination behind");
+        assert!(
+            !dst.exists(),
+            "a failed extraction must not leave the destination behind"
+        );
 
         std::fs::remove_file(&bundle_path).unwrap();
     }
