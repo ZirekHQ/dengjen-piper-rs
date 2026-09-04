@@ -70,13 +70,34 @@ itself. See issue #16 and the `linux-arm64` CI job for a verified recipe.
 
 ## Publish new version
 
-Bump the version in the three `Cargo.toml` files (root `dengjen-piper-rs`, `crates/espeak-rs`,
-`crates/espeak-rs-sys` — they're kept in lockstep), merge to `main`, then push a tag matching
-`publish-*` (e.g. `git tag publish-0.3.0 && git push origin publish-0.3.0`). The
-[`publish` workflow](.github/workflows/publish.yml) publishes dengjen-espeak-rs-sys, waits for it to
-land on the crates.io index, then dengjen-espeak-rs, waits again, then dengjen-piper-rs — each crate depends on
-the version of the previous one just published, so publishing out of order or without waiting
-will fail to resolve.
+Maintainers only. `Cargo.toml`'s `[workspace.package].version` is the single source of truth
+every published crate tracks in lockstep — 6 of the 7 via `version.workspace = true`;
+`crates/espeak-rs-sys` isn't a workspace member (see the comment above `[workspace.package]`), so
+it's hand-synced instead, by the same script that does everything else below. There's no more
+manually bumping individual `Cargo.toml` files, and no manual tagging.
+
+1. Run the **Prepare release** workflow (`workflow_dispatch`, from the Actions tab). It computes
+   the next semver version from Conventional Commit subjects merged since the last `vX.Y.Z` tag
+   (`fix:`/etc → patch, `feat:` → minor, `!`/`BREAKING CHANGE:` → major, only docs/chore/style/
+   refactor/test since the last tag means no release) and opens a PR bumping every hand-synced
+   copy of it (`scripts/next-version.sh` / `scripts/bump-version.sh`).
+
+   First run only: `next-version.sh` needs a prior `vX.Y.Z` tag to diff Conventional Commits
+   from, and fails loudly rather than guessing when none exists — this repo has never tagged a
+   release, so push a `v<current-workspace-version>` tag once, manually, to bootstrap it.
+
+2. Review and merge that PR. **This is the release gate** — merging it releases the version in
+   the diff, with nothing further to confirm: [`tag-and-release.yml`](.github/workflows/tag-and-release.yml)
+   tags that merge commit `vX.Y.Z` and directly triggers [`publish.yml`](.github/workflows/publish.yml),
+   which publishes all 8 crates to crates.io in dependency-graph order — `dengjen-espeak-rs-sys` +
+   `dengjen-piper-core` (no internal deps) → `dengjen-espeak-rs` + `dengjen-stub-adapter` +
+   `dengjen-fs-voice-repo` + `dengjen-ort-adapter` (each needs one tier-1 crate) →
+   `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2 crates) — waiting for each tier
+   to land on the crates.io index before the next, dependent tier publishes.
+
+If `publish.yml` fails partway through, re-run it (Actions tab, or `gh workflow run publish.yml`)
+— no new tag needed. Every publish step is idempotent (skips a crate crates.io already has), so
+re-running from scratch after a partial failure is always safe.
 
 Note: Please don't create PR from your main branch. only from new feature branch!
 

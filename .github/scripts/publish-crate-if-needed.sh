@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Publishes crate $1 at version $2 unless crates.io already has it -- lets a
-# "publish-*" tag be re-pushed to retry a partial failure (e.g. one crate
-# publishes, the next 403s on a missing token scope) without `cargo publish`
-# hard-failing on a version crates.io already has.
+# Publishes crate $1 at version $2 unless crates.io already has it -- lets
+# publish.yml be re-run from scratch to retry a partial failure (e.g. one
+# crate publishes, the next 403s on a missing token scope) without `cargo
+# publish` hard-failing on a version crates.io already has.
 #
 # crates.io's API 403s any request without a descriptive User-Agent (the
 # bare "curl/x.y.z" default doesn't qualify) -- set one explicitly or every
