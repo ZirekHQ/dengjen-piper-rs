@@ -33,6 +33,24 @@ rm -f Cargo.toml.bak
 sed -i.bak "0,/^version = \"${old_version}\"\$/s//version = \"${new_version}\"/" crates/espeak-rs-sys/Cargo.toml
 rm -f crates/espeak-rs-sys/Cargo.toml.bak
 
+# Every internal cross-crate dependency (piper-rs -> espeak-rs, espeak-rs ->
+# espeak-rs-sys, the adapters -> piper-core, etc.) pins a `version`
+# requirement floor alongside its `path`, required by `cargo publish` for
+# any real (non-dev) path dependency. Unlike tashkeel's equivalent script,
+# these floors DO need bumping every release here, not just on a real API
+# break: every crate in this repo is still pre-1.0, where Cargo's caret
+# requirement treats the minor version the way post-1.0 treats major (`^0.2.0`
+# means `>=0.2.0, <0.3.0`) -- so bumping the shared version to 0.3.0 while
+# these floors stay at "0.2.0" makes `cargo check` below (and any real
+# `cargo publish`) fail outright with "no matching package" for every
+# internal dependency. Restricted to lines that also name a `dengjen-*`
+# package so this can't touch an unrelated third-party dependency whose
+# version happens to equal the same string.
+for manifest in Cargo.toml crates/*/Cargo.toml; do
+  sed -i.bak -E "/package = \"dengjen-/ s/version = \"${old_version}\"/version = \"${new_version}\"/" "$manifest"
+  rm -f "${manifest}.bak"
+done
+
 # Cargo.lock pins each workspace member's own version (matched via --locked
 # in several CI steps, e.g. cargo publish), so it goes stale the moment
 # Cargo.toml's version changes. cargo check only re-resolves entries that
@@ -44,4 +62,4 @@ rm -f crates/espeak-rs-sys/Cargo.toml.bak
 cargo check --quiet
 
 echo "Bumped ${old_version} -> ${new_version}:"
-git diff --stat -- Cargo.toml Cargo.lock crates/espeak-rs-sys/Cargo.toml
+git diff --stat -- Cargo.toml Cargo.lock crates/*/Cargo.toml

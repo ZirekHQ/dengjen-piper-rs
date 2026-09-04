@@ -71,7 +71,13 @@ while IFS= read -r subject; do
   [ -z "$bump" ] && bump="patch"
 done <<< "$subjects"
 
-if echo "$bodies" | grep -qE '^BREAKING[ -]CHANGE:'; then
+# A here-string, not `echo ... | grep -q`: under `pipefail`, an early match
+# in a large $bodies value can make grep close the pipe before echo
+# finishes writing, killing echo with SIGPIPE -- which pipefail then
+# reports as the pipeline's exit status even though grep itself matched,
+# silently downgrading what should be a major bump. Verified: the piped
+# form actually misses the match on a >1MB body; the here-string doesn't.
+if grep -qE '^BREAKING[ -]CHANGE:' <<< "$bodies"; then
   bump="major"
 fi
 
