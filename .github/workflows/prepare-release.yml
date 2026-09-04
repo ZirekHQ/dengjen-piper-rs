@@ -1,0 +1,80 @@
+name: Prepare release
+
+# Computes the next semver version from Conventional Commit subjects merged
+# to main since the last vX.Y.Z tag (scripts/next-version.sh) and opens a PR
+# bumping every hand-synced copy of it (scripts/bump-version.sh). Manual
+# trigger only -- this proposes a release, it doesn't cut one. Merging the
+# PR still requires a human to push the vX.Y.Z tag and the separate
+# publish-* tag for crates.io themselves, same as every other release step.
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install build dependencies
+        # bump-version.sh's `cargo check` builds dengjen-espeak-rs-sys's
+        # build.rs, which needs libclang for bindgen.
+        run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          ref: main
+          submodules: recursive
+          persist-credentials: true
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+        with:
+          toolchain: stable
+
+      - name: Compute next version
+        id: next
+        run: |
+          set -uo pipefail
+          # next-version.sh exits 1 for the normal "nothing release-worthy"
+          # case, which this step treats as skip -- but exit 2 (or anything
+          # else unexpected) means the computation itself is broken (e.g. no
+          # vX.Y.Z tag exists at all), and must fail loudly instead, or a
+          # broken tag state would silently suppress every future release.
+          version="$(bash scripts/next-version.sh)"
+          rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "version=${version}" >> "$GITHUB_OUTPUT"
+          elif [ "$rc" -eq 1 ]; then
+            echo "::notice::Nothing release-worthy since the last tag -- skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::scripts/next-version.sh failed (exit ${rc})"
+            exit "$rc"
+          fi
+
+      - name: Bump version
+        if: steps.next.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: bash scripts/bump-version.sh "$VERSION"
+
+      - name: Open release PR
+        if: steps.next.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          set -euo pipefail
+          branch="chore/bump-${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add Cargo.toml Cargo.lock crates/*/Cargo.toml
+          git commit -m "chore: bump workspace version -> ${VERSION}"
+          git push -u origin "$branch"
+          gh pr create --title "chore: bump workspace version -> ${VERSION}" \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). Merging this does not release anything by itself -- push a \`v${VERSION}\` tag afterward (and a \`publish-N\` tag for crates.io) to actually trigger the release/publish workflows." \
+            --base main --head "$branch"

@@ -1,13 +1,13 @@
 [package]
 name = "dengjen-stub-adapter"
-version = "0.1.0"
+version.workspace = true
 license = "GPL-3.0-or-later"
 description = "Deterministic, dependency-free Phonemizer test double for dengjen-piper-rs"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 edition = "2024"
 
 [dependencies]
-piper-core = { path = "../piper-core", package = "dengjen-piper-core" }
+piper-core = { path = "../piper-core", package = "dengjen-piper-core", version = "0.2.0" }
 
 [dev-dependencies]
 piper-core = { path = "../piper-core", package = "dengjen-piper-core", features = ["testing"] }
