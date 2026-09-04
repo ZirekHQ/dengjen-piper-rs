@@ -74,7 +74,7 @@ Maintainers only. `Cargo.toml`'s `[workspace.package].version` is the single sou
 every published crate tracks in lockstep — 6 of the 7 via `version.workspace = true`;
 `crates/espeak-rs-sys` isn't a workspace member (see the comment above `[workspace.package]`), so
 it's hand-synced instead, by the same script that does everything else below. There's no more
-manually bumping individual `Cargo.toml` files.
+manually bumping individual `Cargo.toml` files, and no manual tagging.
 
 1. Run the **Prepare release** workflow (`workflow_dispatch`, from the Actions tab). It computes
    the next semver version from Conventional Commit subjects merged since the last `vX.Y.Z` tag
@@ -86,24 +86,18 @@ manually bumping individual `Cargo.toml` files.
    from, and fails loudly rather than guessing when none exists — this repo has never tagged a
    release, so push a `v<current-workspace-version>` tag once, manually, to bootstrap it.
 
-2. Merge that PR.
+2. Review and merge that PR. **This is the release gate** — merging it releases the version in
+   the diff, with nothing further to confirm: [`tag-and-release.yml`](.github/workflows/tag-and-release.yml)
+   tags that merge commit `vX.Y.Z` and directly triggers [`publish.yml`](.github/workflows/publish.yml),
+   which publishes all 8 crates to crates.io in dependency-graph order — `dengjen-espeak-rs-sys` +
+   `dengjen-piper-core` (no internal deps) → `dengjen-espeak-rs` + `dengjen-stub-adapter` +
+   `dengjen-fs-voice-repo` + `dengjen-ort-adapter` (each needs one tier-1 crate) →
+   `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2 crates) — waiting for each tier
+   to land on the crates.io index before the next, dependent tier publishes.
 
-3. Push a `vX.Y.Z` tag at the merge commit (e.g. `git tag v0.3.0 && git push origin v0.3.0`).
-   Nothing currently triggers off this tag directly — unlike sibling repos, there's no GitHub
-   Release / cargo-dist step here, since piper-rs is a library with no prebuilt binaries to
-   distribute. It exists purely as the baseline step 1's next run diffs Conventional Commits
-   from.
-
-4. Push a **separate** `publish-N` tag (e.g. `publish-6`) — triggers the
-   [`publish` workflow](.github/workflows/publish.yml), which publishes all 8 crates in
-   dependency order: `dengjen-espeak-rs-sys` + `dengjen-piper-core` (no internal deps) →
-   `dengjen-espeak-rs` + `dengjen-stub-adapter` + `dengjen-fs-voice-repo` + `dengjen-ort-adapter`
-   (each needs one tier-1 crate) → `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2
-   crates), waiting for each tier to land on the crates.io index before the next tier — which
-   depends on it — publishes. The `publish-*` tag pattern is deliberately different from step
-   3's `vX.Y.Z`: it's the retry mechanism if a partial publish fails, since `cargo publish` on a
-   version crates.io already has is a hard failure, not a no-op — `publish.yml` skips a crate
-   it finds already live, so re-pushing a new `publish-N` tag after a partial failure is safe.
+If `publish.yml` fails partway through, re-run it (Actions tab, or `gh workflow run publish.yml`)
+— no new tag needed. Every publish step is idempotent (skips a crate crates.io already has), so
+re-running from scratch after a partial failure is always safe.
 
 Note: Please don't create PR from your main branch. only from new feature branch!
 
