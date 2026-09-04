@@ -95,7 +95,7 @@ manually bumping individual `Cargo.toml` files.
    from.
 
 4. Push a **separate** `publish-N` tag (e.g. `publish-6`) — triggers the
-   [`publish` workflow](.github/workflows/publish.yml), which publishes all 7 crates in
+   [`publish` workflow](.github/workflows/publish.yml), which publishes all 8 crates in
    dependency order: `dengjen-espeak-rs-sys` + `dengjen-piper-core` (no internal deps) →
    `dengjen-espeak-rs` + `dengjen-stub-adapter` + `dengjen-fs-voice-repo` + `dengjen-ort-adapter`
    (each needs one tier-1 crate) → `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2
