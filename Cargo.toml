@@ -2,9 +2,16 @@
 members = ["crates/espeak-rs", "crates/piper-core", "crates/stub-adapter", "crates/fs-voice-repo", "crates/ort-adapter", "crates/espeak-rs-adapter"]
 resolver = "1"
 
+# Every crate in the release train (the 6 workspace members above, plus
+# crates/espeak-rs-sys -- excluded from `members` and hand-synced by
+# scripts/bump-version.sh instead) shares this one version and releases in
+# lockstep; see scripts/next-version.sh and .github/workflows/prepare-release.yml.
+[workspace.package]
+version = "0.2.0"
+
 [package]
 name = "dengjen-piper-rs"
-version = "0.2.0"
+version.workspace = true
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Use piper TTS models in Rust"

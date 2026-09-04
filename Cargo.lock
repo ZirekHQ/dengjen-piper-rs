@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-espeak-rs-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dengjen-espeak-rs",
  "dengjen-piper-core",
@@ -318,7 +318,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-fs-voice-repo"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dengjen-piper-core",
  "serde",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-ort-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dengjen-piper-core",
  "ndarray 0.16.1",
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-piper-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "unicode-normalization",
 ]
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-stub-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "dengjen-piper-core",
 ]

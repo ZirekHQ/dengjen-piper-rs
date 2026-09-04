@@ -1,13 +1,13 @@
 [package]
 name = "dengjen-ort-adapter"
-version = "0.1.0"
+version.workspace = true
 license = "GPL-3.0-or-later"
 description = "ONNX Runtime InferenceEngine adapter for dengjen-piper-rs"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 edition = "2024"
 
 [dependencies]
-piper-core = { path = "../piper-core", package = "dengjen-piper-core" }
+piper-core = { path = "../piper-core", package = "dengjen-piper-core", version = "0.2.0" }
 ndarray = "0.16.1"
 ort = { version = "=2.0.0-rc.12" }
 
