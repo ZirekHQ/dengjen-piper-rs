@@ -149,3 +149,4 @@ jobs:
         with:
           file: cobertura.xml
           language: Rust
+          label: code-coverage/rust
