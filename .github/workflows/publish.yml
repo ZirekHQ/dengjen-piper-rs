@@ -48,6 +48,16 @@ jobs:
       - name: bundle espeak-ng data for publish
         run: bash crates/espeak-rs-sys/scripts/bundle-espeak-ng.sh
 
+      # Every step below that needs the version passes it through `env:`
+      # rather than interpolating `${{ steps.version.outputs.version }}`
+      # directly into `run:` -- the latter is a template-expansion script
+      # injection shape (flagged by zizmor/CodeQL) even though this
+      # particular value only ever comes from Cargo.toml, not attacker
+      # input: GitHub Actions expands `${{ }}` as literal text into the
+      # script *before* the shell runs it, so anything containing shell
+      # metacharacters would execute, whereas an env var is passed as a
+      # real environment variable and can't reinterpret the script around it.
+      #
       # Tiered by the internal dependency graph: a publish only becomes
       # resolvable to its dependent once crates.io's index (not just the
       # publish API response) has actually picked it up, hence the wait
@@ -56,38 +66,56 @@ jobs:
       #
       # tier 1: dengjen-espeak-rs-sys, dengjen-piper-core (no internal deps)
       - name: publish tier 1 (dengjen-espeak-rs-sys)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs-sys "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs-sys "$VERSION"
       - name: publish tier 1 (dengjen-piper-core)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-core "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-core "$VERSION"
       - name: wait for tier 1 to index
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs-sys "$version"
-          bash .github/scripts/wait-for-crate.sh dengjen-piper-core "$version"
+          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs-sys "$VERSION"
+          bash .github/scripts/wait-for-crate.sh dengjen-piper-core "$VERSION"
 
       # tier 2: dengjen-espeak-rs (needs espeak-rs-sys), dengjen-stub-adapter /
       # dengjen-fs-voice-repo / dengjen-ort-adapter (each needs piper-core)
       - name: publish tier 2 (dengjen-espeak-rs)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs "$VERSION"
       - name: publish tier 2 (dengjen-stub-adapter)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-stub-adapter "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-stub-adapter "$VERSION"
       - name: publish tier 2 (dengjen-fs-voice-repo)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-fs-voice-repo "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-fs-voice-repo "$VERSION"
       - name: publish tier 2 (dengjen-ort-adapter)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-ort-adapter "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-ort-adapter "$VERSION"
       - name: wait for tier 2 to index
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs "$version"
-          bash .github/scripts/wait-for-crate.sh dengjen-stub-adapter "$version"
-          bash .github/scripts/wait-for-crate.sh dengjen-fs-voice-repo "$version"
-          bash .github/scripts/wait-for-crate.sh dengjen-ort-adapter "$version"
+          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs "$VERSION"
+          bash .github/scripts/wait-for-crate.sh dengjen-stub-adapter "$VERSION"
+          bash .github/scripts/wait-for-crate.sh dengjen-fs-voice-repo "$VERSION"
+          bash .github/scripts/wait-for-crate.sh dengjen-ort-adapter "$VERSION"
 
       # tier 3: dengjen-espeak-rs-adapter (needs piper-core + espeak-rs),
       # dengjen-piper-rs (needs espeak-rs)
       - name: publish tier 3 (dengjen-espeak-rs-adapter)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs-adapter "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs-adapter "$VERSION"
       - name: publish tier 3 (dengjen-piper-rs)
-        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-rs "${{ steps.version.outputs.version }}"
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-rs "$VERSION"
