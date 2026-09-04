@@ -1,7 +1,5 @@
 use super::voice::Voice;
 
-/// Per-call overrides for a `Voice`'s default inference parameters. A
-/// `None` field falls back to the voice's `InferenceDefaults`.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct InferenceOverrides {
     pub speaker_id: Option<i64>,
@@ -10,12 +8,6 @@ pub struct InferenceOverrides {
     pub noise_w: Option<f32>,
 }
 
-/// Fully-resolved inference parameters, ready to hand to an
-/// `InferenceEngine` port implementation. `speaker_id` is `Some` only when
-/// the voice is multi-speaker (R7): a single-speaker voice's inference
-/// engine adapter must never build a speaker-id tensor, regardless of what
-/// the caller requested, so that decision is made once here rather than
-/// re-derived in every adapter.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ResolvedInferenceParams {
     pub noise_scale: f32,
@@ -25,10 +17,6 @@ pub struct ResolvedInferenceParams {
 }
 
 impl Voice {
-    /// Resolves per-call `overrides` against this voice's
-    /// `InferenceDefaults`, individually falling back to the default for
-    /// each unset field (R8), defaulting an unset speaker id to `0` (R9),
-    /// and omitting the speaker id entirely for single-speaker voices (R7).
     pub fn resolve_inference_params(
         &self,
         overrides: InferenceOverrides,

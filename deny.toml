@@ -1,6 +1,3 @@
-# cargo-deny configuration.
-# Run `cargo deny check` locally, or see CI job `deny` in .github/workflows/rust-lint.yml.
-# Docs: https://embarkstudios.github.io/cargo-deny/
 
 [graph]
 targets = []

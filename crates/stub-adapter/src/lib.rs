@@ -1,21 +1,9 @@
-//! `dengjen-stub-adapter`: a deterministic, dependency-free `Phonemizer`
-//! implementation. Deliberately different from `espeak-rs-adapter`'s real
-//! backend (whitespace/terminator splitting instead of clause boundaries) —
-//! this crate's own test suite proves it satisfies `piper-core`'s
-//! `Phonemizer` contract from *outside* that crate, the actual
-//! stub-validated-trait proof point the reimagine design calls for.
 
 use piper_core::domain::errors::PhonemizationError;
 use piper_core::ports::phonemizer::{Phonemizer, Sentence};
 
-/// Voices this stub recognizes; anything else is treated as unresolvable,
-/// mirroring R22's "an unresolvable voice fails before processing begins."
 const KNOWN_VOICES: &[&str] = &["en-US", "en-GB", "fr-FR"];
 
-/// A deterministic `Phonemizer` with no native dependency — for tests of
-/// other crates that need a `Phonemizer` without pulling in real espeak-ng,
-/// and as the first external proof that `piper-core`'s `Phonemizer`
-/// contract is genuinely implementable from outside `piper-core` itself.
 pub struct StubPhonemizer {
     known_voices: &'static [&'static str],
 }
@@ -45,9 +33,6 @@ impl Phonemizer for StubPhonemizer {
     }
 }
 
-/// Splits on `.`, `?`, `!` (terminator kept on the preceding sentence),
-/// trims each segment, and drops empty ones. Text with no terminator
-/// becomes a single sentence.
 fn split_into_sentences(text: &str) -> Vec<Sentence> {
     let mut sentences = Vec::new();
     let mut current = String::new();

@@ -40,17 +40,6 @@ pub struct ModelConfig {
     pub phoneme_id_map: HashMap<char, Vec<i64>>,
 }
 
-// Mirrors Piper's own phonemes_to_ids: BOS ids, then each phoneme's ids
-// followed by PAD's ids, then EOS ids. Every mapping is a Vec<i64> because a
-// single phoneme can map to more than one id, so each entry is extended in
-// full rather than truncated to its first id.
-//
-// `phoneme_id_map` is built from the model's training vocabulary, which uses
-// NFD (decomposed) Unicode — e.g. 'c' + a combining cedilla rather than the
-// composed 'ç'. espeak-ng emits composed phonemes, so the input is
-// NFD-normalized here before the per-char lookup; without this, composed
-// phonemes have no entry in the map and are silently dropped like any other
-// unknown phoneme.
 pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
     let map = &config.phoneme_id_map;
     let default_id = [0i64];
@@ -137,10 +126,6 @@ mod tests {
 
     #[test]
     fn normalizes_composed_phonemes_to_nfd_before_lookup() {
-        // The model is trained on NFD (decomposed) Unicode, e.g. 'c' followed
-        // by a combining cedilla (U+0327), but espeak-ng emits the composed
-        // form 'ç' (U+00E7) as a single codepoint. Without NFD normalization
-        // that composed codepoint isn't in the map and is silently dropped.
         let config = config_with_map(HashMap::from([
             (BOS, vec![1]),
             (PAD, vec![0]),
@@ -155,20 +140,6 @@ mod tests {
         );
     }
 
-    // Regression guard for #12 ("output for some french models is low and
-    // garbled"): reproduces the reported model end-to-end through
-    // phonemization by asserting every NFD-normalized phoneme espeak-ng
-    // produces for a battery of French sentences — nasal vowels, cedilla,
-    // the œ ligature, accents, expanded numbers — has an entry in the real
-    // fr_FR-tom-medium phoneme_id_map, i.e. none would be silently dropped
-    // by `phonemes_to_ids`. On this specific model the map already covers
-    // both composed and decomposed forms, so synthesis wasn't actually
-    // broken by the NFD gap `normalizes_composed_phonemes_to_nfd_before_lookup`
-    // fixed for other languages; this pins that down and catches any future
-    // regression in this model's phoneme coverage. The fixture is
-    // `fr_FR-tom-medium.onnx.json`'s config as published on Hugging Face
-    // (rhasspy/piper-voices) — no binary weights, just the phoneme_id_map
-    // and metadata this test reads.
     #[cfg(feature = "espeak-rs")]
     #[test]
     fn french_tom_medium_maps_every_phoneme_from_real_sentences() {

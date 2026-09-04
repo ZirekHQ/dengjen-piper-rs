@@ -4,8 +4,6 @@ use crate::domain::errors::{PhonemizationError, VoiceLoadError};
 use crate::ports::phonemizer::{Phonemizer, Sentence};
 use crate::registry::VoiceRegistry;
 
-/// Failure modes for the `Phonemize` use case: a voice lookup miss, or a
-/// phonemizer backend failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhonemizeError {
     VoiceNotFound(String),

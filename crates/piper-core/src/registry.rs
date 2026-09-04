@@ -3,10 +3,6 @@ use std::collections::HashMap;
 use crate::domain::errors::VoiceLoadError;
 use crate::domain::voice::Voice;
 
-/// In-memory store of loaded voices. Per the design's data flow (§4): voice
-/// loading is a cold path (via `LoadVoice`, populating this registry once);
-/// the hot synthesis path only ever does a `lookup` here — no disk I/O or
-/// JSON parsing per request.
 #[derive(Default)]
 pub struct VoiceRegistry {
     voices: HashMap<String, Voice>,

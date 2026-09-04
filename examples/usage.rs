@@ -1,10 +1,4 @@
-/*
-git submodule update --init
 
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx.json
-cargo run --example usage en_US-libritts_r-medium.onnx.json 80
-*/
 
 use dengjen_piper_rs::Piper;
 use rodio::buffer::SamplesBuffer;

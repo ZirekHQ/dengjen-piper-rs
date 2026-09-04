@@ -1,12 +1,3 @@
-//! Requires a real Piper `.onnx` model, downloaded manually — matching how
-//! `examples/*.rs` at the repo root already require manual setup (`wget`
-//! from rhasspy/piper-voices). Run with:
-//!
-//! ```text
-//! wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx \
-//!   -O crates/ort-adapter/tests/fixtures/model.onnx
-//! cargo test -p dengjen-ort-adapter --test real_model -- --ignored
-//! ```
 
 use dengjen_ort_adapter::OrtInferenceEngine;
 use piper_core::domain::inference::ResolvedInferenceParams;

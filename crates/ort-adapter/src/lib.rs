@@ -1,9 +1,3 @@
-//! `dengjen-ort-adapter`: an `InferenceEngine` implementation wrapping the
-//! `ort` crate. Ports `src/model.rs::infer()`'s tensor-construction logic
-//! (unchanged since it was written) but is simpler: this adapter receives
-//! an already-encoded `PhonemeIdSequence` and an already-resolved
-//! `speaker_id: Option<i64>` — no `num_speakers` re-check needed here,
-//! matching the R7 intent that adapters never re-derive that decision.
 
 use ndarray::{Array1, Array2};
 use ort::session::Session;
@@ -14,25 +8,13 @@ use piper_core::domain::inference::ResolvedInferenceParams;
 use piper_core::domain::phoneme::PhonemeIdSequence;
 use piper_core::ports::inference_engine::InferenceEngine;
 
-/// The tensors one inference call needs, before they're handed to
-/// `ort::inputs!`. Pure and session-free, so its shape-construction logic
-/// is unit-testable without a live ONNX Runtime session or model file.
 struct InputTensors {
-    /// Phoneme IDs, shape `(1, input_len)`.
     input: Tensor<i64>,
-    /// `input`'s sequence length, shape `(1,)`.
     input_lengths: Tensor<i64>,
-    /// `[noise_scale, length_scale, noise_w]`, shape `(3,)`.
     scales: Tensor<f32>,
-    /// Present only when `ResolvedInferenceParams::speaker_id` is `Some`,
-    /// shape `(1,)`.
     speaker_id: Option<Tensor<i64>>,
 }
 
-/// Builds the tensors `OrtInferenceEngine::infer` will pass to
-/// `ort::inputs!`. `params.speaker_id.is_some()` is the sole signal for
-/// whether a 4th (speaker-id) tensor is built — this adapter never
-/// re-derives that decision from a voice's `num_speakers` itself.
 fn build_input_tensors(ids: &PhonemeIdSequence, params: &ResolvedInferenceParams) -> InputTensors {
     let input_len = ids.0.len();
     let input_arr = Array2::<i64>::from_shape_vec((1, input_len), ids.0.clone())
@@ -74,27 +56,12 @@ fn build_input_tensors(ids: &PhonemeIdSequence, params: &ResolvedInferenceParams
     }
 }
 
-/// Wraps one loaded ONNX Runtime session for one voice model. `sample_rate`
-/// is supplied at construction (from the paired `Voice.audio.sample_rate`,
-/// which `InferenceEngine::infer`'s signature has no way to receive per
-/// call) since `SynthesizedAudio` must carry it on every return.
 pub struct OrtInferenceEngine {
     session: Session,
     sample_rate: u32,
 }
 
 impl OrtInferenceEngine {
-    /// Requires `sample_rate` up front, so a composition root cannot build
-    /// this engine before it knows the target voice's config. The required
-    /// order is:
-    ///
-    /// 1. `repository.load(voice_id)` — a `piper_core::ports::VoiceRepository`
-    ///    call — to get the `Voice`, and read `voice.audio.sample_rate` off it.
-    /// 2. `OrtInferenceEngine::new(model_path, voice.audio.sample_rate)`.
-    /// 3. Hand both `repository` and the now-built engine to
-    ///    `piper_core::use_cases::load_voice::LoadVoice::execute`, which
-    ///    loads the voice again (see that struct's doc comment for why) to
-    ///    validate the engine's arity and register the voice.
     pub fn new(model_path: &std::path::Path, sample_rate: u32) -> Result<Self, InferenceError> {
         let session = Session::builder()
             .map_err(|e| {
@@ -187,9 +154,6 @@ mod tests {
 
     #[test]
     fn input_tensor_shape_matches_the_id_sequence_length() {
-        // `Tensor::try_extract_tensor` returns `(&ort::value::Shape, &[T])`
-        // — ort's own `Shape` type (not `ndarray::IxDyn`) and a plain
-        // slice (no `.as_slice()` — it's already one).
         let ids = PhonemeIdSequence(vec![1, 10, 0, 20, 0, 2]);
         let tensors = build_input_tensors(&ids, &params(None));
         let (shape, data) = tensors.input.try_extract_tensor::<i64>().unwrap();

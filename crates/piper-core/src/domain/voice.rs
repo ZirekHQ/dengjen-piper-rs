@@ -2,14 +2,11 @@ use std::collections::HashMap;
 
 use super::phoneme::PhonemeIdMap;
 
-/// Declares the PCM sample rate a `Voice`'s underlying model emits.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AudioConfig {
     pub sample_rate: u32,
 }
 
-/// Default synthesis hyperparameters baked into a `Voice`; overridable per
-/// call via `InferenceOverrides`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct InferenceDefaults {
     pub noise_scale: f32,
@@ -17,14 +14,8 @@ pub struct InferenceDefaults {
     pub noise_w: f32,
 }
 
-/// Named-speaker to integer id table for multi-speaker voices; empty for
-/// single-speaker voices.
 pub type SpeakerMap = HashMap<String, i64>;
 
-/// The aggregate root of the synthesis domain: one loaded, servable
-/// synthesis target. Its config plus loaded inference session (held by the
-/// `InferenceEngine` adapter, not here) form the consistency boundary — this
-/// struct is the config half, port-agnostic.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Voice {
     pub voice_id: String,
@@ -37,14 +28,6 @@ pub struct Voice {
 }
 
 impl Voice {
-    /// Returns the speaker name→id map, or `None` for single-speaker
-    /// voices — distinguishing "no speaker support" from "supports
-    /// speakers but none are listed" (R10). Decided by `num_speakers`, the
-    /// same signal `resolve_inference_params` (R7) uses to decide whether
-    /// to include a speaker id at all: a voice reporting `num_speakers > 1`
-    /// always gets `Some`, even with an incomplete `speaker_map`, so a
-    /// malformed voice config surfaces as an inconsistency here rather than
-    /// silently reading as single-speaker.
     pub fn speakers(&self) -> Option<&SpeakerMap> {
         if self.num_speakers > 1 {
             Some(&self.speaker_map)
@@ -89,11 +72,6 @@ mod tests {
 
     #[test]
     fn returns_some_for_a_multi_speaker_voice_even_with_an_incomplete_map() {
-        // num_speakers is the R7-consistent signal, not the map's own
-        // contents — a multi-speaker voice with a somehow-empty
-        // speaker_map is a malformed config, and this must surface as
-        // Some(empty map) so the inconsistency is visible, not silently
-        // reported as "no speaker support."
         let voice = voice_with(2, SpeakerMap::new());
         assert_eq!(voice.speakers(), Some(&SpeakerMap::new()));
     }

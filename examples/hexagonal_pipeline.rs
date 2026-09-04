@@ -1,20 +1,3 @@
-//! Composes all four Phase 2 adapter crates around `piper-core`'s ports and
-//! use cases, proving they're interchangeable implementations of the same
-//! traits rather than a demonstration specific to any one of them:
-//!
-//! - `VoiceRepository`: `FsVoiceRepository` loads a voice from a JSON
-//!   sidecar file (written to a temp dir here so the example needs no
-//!   external fixture).
-//! - `Phonemizer`: run once with `StubPhonemizer` (dependency-free) and
-//!   once with `EspeakRsPhonemizer` (the real espeak-ng backend) — same
-//!   call sites, same `Phonemize` use case, different adapter.
-//! - `InferenceEngine`: `OrtInferenceEngine`, wired through `LoadVoice` and
-//!   `Synthesize`. Needs a real `.onnx` model, so this step is skipped
-//!   with an explanatory message when none is given.
-//!
-//! Run with:
-//!
-//!     cargo run --example hexagonal_pipeline [path/to/voice.onnx]
 
 use std::collections::BTreeMap;
 
@@ -36,12 +19,6 @@ const VOICE_ID: &str = "demo-voice";
 const ESPEAK_VOICE: &str = "en-US";
 const TEXT: &str = "Hello world. This is piper-rs.";
 
-/// Builds a `phoneme_id_map` covering every phoneme this run will actually
-/// need: the `^`/`_`/`$` sentinels plus every character `encode_phonemes`
-/// will see once it NFD-normalizes `phonemes`. Hardcoding a fixed IPA
-/// table here would silently drift from whatever the installed espeak-ng
-/// backend emits; deriving it from the real phonemizer output guarantees
-/// `Synthesize` never falls back to a dropped phoneme or a zero id.
 fn phoneme_id_map_for(phonemes: &str) -> BTreeMap<char, Vec<i64>> {
     let mut map = BTreeMap::new();
     map.insert(PAD, vec![0]);
@@ -59,9 +36,6 @@ fn phoneme_id_map_for(phonemes: &str) -> BTreeMap<char, Vec<i64>> {
     map
 }
 
-/// A minimal but valid `<voice_id>.onnx.json` — the same schema
-/// `FsVoiceRepository` expects from a real Piper voice distribution, with
-/// `phoneme_id_map` filled in from `phoneme_id_map_for`.
 fn voice_config(phoneme_id_map: &BTreeMap<char, Vec<i64>>) -> String {
     serde_json::json!({
         "audio": { "sample_rate": 22050 },
@@ -77,9 +51,6 @@ fn voice_config(phoneme_id_map: &BTreeMap<char, Vec<i64>>) -> String {
 fn main() {
     let espeak_phonemizer = EspeakRsPhonemizer::default();
 
-    // Phonemize up front so the voice config's phoneme_id_map can be built
-    // from what espeak-ng actually emits for TEXT, rather than a hand-typed
-    // guess that might not match this backend's version.
     let espeak_sentences = espeak_phonemizer
         .phonemize(TEXT, ESPEAK_VOICE)
         .expect("phonemize with the real espeak-ng backend");
@@ -97,8 +68,6 @@ fn main() {
     )
     .expect("write demo voice config");
 
-    // Port: VoiceRepository. Any other implementation (a database, S3, ...)
-    // drops in here with no change below this line.
     let repository = FsVoiceRepository::new(voice_dir.path());
     let voice = repository.load(VOICE_ID).expect("load demo voice");
     println!(
@@ -106,7 +75,6 @@ fn main() {
         voice.voice_id, voice.num_speakers, voice.audio.sample_rate
     );
 
-    // Port: Phonemizer, exercised through two interchangeable adapters.
     let mut registry = VoiceRegistry::new();
     registry.register(voice.clone());
 
@@ -120,8 +88,6 @@ fn main() {
 
     println!("EspeakRsPhonemizer:  {espeak_sentences:?}");
 
-    // Port: InferenceEngine. Needs a real .onnx model; without one, stop
-    // here having proven the VoiceRepository + Phonemizer composition.
     let Some(model_path) = std::env::args().nth(1) else {
         println!(
             "\nNo .onnx model path given — skipping inference. Pass one as \

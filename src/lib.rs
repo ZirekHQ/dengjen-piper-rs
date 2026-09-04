@@ -36,12 +36,6 @@ const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
 #[cfg(feature = "espeak-ng")]
 const ESPEAKNG_DATA_DIR_NAME: &str = "espeak-ng-data";
 
-/// Mirrors `espeak-rs`'s own resolution of `PIPER_ESPEAKNG_DATA_DIRECTORY`
-/// (see `crates/espeak-rs/src/lib.rs`): the variable names the directory that
-/// *contains* `espeak-ng-data`, not the data directory itself. Returns `None`
-/// when the var is unset or doesn't point at a real `espeak-ng-data`
-/// directory, so the caller can fall back to `espeak-ng`'s own default
-/// resolution (`ESPEAK_DATA_PATH`, exe-relative, cwd-relative, `/usr/share`).
 #[cfg(feature = "espeak-ng")]
 fn locate_espeak_ng_data_dir() -> Option<std::path::PathBuf> {
     let dir = std::env::var(PIPER_ESPEAKNG_DATA_DIRECTORY).ok()?;
@@ -58,13 +52,6 @@ fn phonemize_espeak_ng(voice: &str, text: &str) -> PiperResult<String> {
         .map_err(|e| PiperError::PhonemizationError(format!("{}", e)))
 }
 
-/// Owns a loaded ONNX Runtime session for one voice model.
-///
-/// There is no separate "unload" call: `Piper` releases the underlying
-/// ONNX Runtime session (and the native memory backing it) as soon as it is
-/// dropped, like any other Rust value. To unload a model on demand — e.g. to
-/// swap voices in a long-running app — hold it behind an `Option<Piper>` (or
-/// similar) and assign `None` to it; see `examples/unload_model.rs`.
 pub struct Piper {
     config: ModelConfig,
     session: Session,
@@ -101,9 +88,6 @@ impl Piper {
         Self { session, config }
     }
 
-    /// Synthesize speech from text or phonemes.
-    ///
-    /// Returns `(samples, sample_rate)` where samples are f32 PCM audio.
     pub fn create(
         &mut self,
         text: &str,
@@ -153,7 +137,6 @@ impl Piper {
         Ok((samples, self.config.audio.sample_rate))
     }
 
-    /// Returns the speaker name→id map, or `None` for single-speaker models.
     pub fn voices(&self) -> Option<&HashMap<String, i64>> {
         if self.config.speaker_id_map.is_empty() {
             None
@@ -168,10 +151,6 @@ mod espeak_ng_data_dir_tests {
     use super::*;
     use std::sync::Mutex;
 
-    // `locate_espeak_ng_data_dir` reads a process-global env var; serialize
-    // the tests that touch it so they can't observe each other's value, and
-    // restore whatever value (if any) preceded the test so a var inherited
-    // from the outer environment survives the test run.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     struct EnvVarGuard<'a> {
