@@ -1,0 +1,64 @@
+name: Tag and trigger release
+
+# Fires on every push to main, but only acts on the commit that lands
+# prepare-release.yml's version-bump PR (identified by its exact commit
+# subject -- squash- or rebase-merging that PR always produces this
+# message, since it's the only commit on that branch). Every other push to
+# main is a no-op here.
+#
+# Tags that commit vX.Y.Z (the baseline scripts/next-version.sh's next run
+# diffs Conventional Commits from) and directly triggers publish.yml,
+# collapsing what used to be two separate manual tag pushes -- push vX.Y.Z,
+# then push a second, differently-named publish-N tag -- into the single
+# "review and merge the bump PR" gate. Pushing to crates.io stays the one
+# thing that isn't automatic beyond that: merging the PR is the last human
+# decision before publish.yml actually runs.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    # head_commit is the single new commit a squash/rebase merge produces;
+    # a push landing more than one new commit at once (not this repo's
+    # normal PR flow) would only inspect the last of them.
+    if: "startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
+    permissions:
+      contents: write
+      # workflow_dispatch is the one event type GITHUB_TOKEN is explicitly
+      # allowed to trigger a new run for -- unlike `push`, which it's
+      # deliberately blocked from re-triggering to prevent recursive runs
+      # (see "Triggering a workflow" in GitHub's Actions docs). No PAT
+      # needed for the "Trigger publish" step below because of that.
+      actions: write
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: true
+
+      - name: Resolve workspace version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Push release tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Trigger publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish.yml --ref main
