@@ -1,0 +1,14 @@
+= piper-rs
+
+Use https://github.com/rhasspy/piper[Piper] TTS models in Rust.
+
+Published on crates.io as `piper-rs`. This repo is a fork of
+https://github.com/thewh1teagle/piper-rs[thewh1teagle/piper-rs].
+
+NOTE: No license file on this repo -- and none upstream either (checked
+thewh1teagle/piper-rs directly), so this isn't something the fork introduced. Still worth
+resolving, ideally upstream, before pulling it into any release pipeline or downstream
+distribution.
+
+Docs spike: this component is aggregated into the org-wide
+https://zirekhq.github.io[ZirekHQ documentation site].
