@@ -1,1 +1,3 @@
 * xref:index.adoc[Overview]
+* xref:installation.adoc[Installation]
+* xref:building.adoc[Building]

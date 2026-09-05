@@ -1,0 +1,15 @@
+= Installation
+
+[source,console]
+----
+cargo add dengjen-piper-rs
+----
+
+To install the `piper-rs-cli` binary directly from this repository instead of via crates.io:
+
+[source,console]
+----
+cargo install piper-rs-cli --git https://github.com/ZirekHQ/dengjen-piper-rs
+----
+
+See `examples/` in the repository for usage examples.

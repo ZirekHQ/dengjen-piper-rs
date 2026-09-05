@@ -1,14 +1,35 @@
-= piper-rs
+= dengjen-piper-rs
 
-Use https://github.com/rhasspy/piper[Piper] TTS models in Rust.
+image:https://img.shields.io/crates/v/dengjen-piper-rs?logo=rust&color=F07B3C[Crates,link=https://crates.io/crates/dengjen-piper-rs/]
 
-Published on crates.io as `piper-rs`. This repo is a fork of
-https://github.com/thewh1teagle/piper-rs[thewh1teagle/piper-rs].
+Use https://github.com/OHF-Voice/piper1-gpl[Piper] TTS models in Rust.
 
-NOTE: No license file on this repo -- and none upstream either (checked
-thewh1teagle/piper-rs directly), so this isn't something the fork introduced. Still worth
-resolving, ideally upstream, before pulling it into any release pipeline or downstream
-distribution.
+== Features
 
-Docs spike: this component is aggregated into the org-wide
-https://zirekhq.github.io[ZirekHQ documentation site].
+* Compatibility with all Piper TTS models
+* Support for multiple languages
+* High performance with pure Rust implementation
+
+== Models
+
+All pretrained models are available at
+https://huggingface.co/rhasspy/piper-voices/tree/main[huggingface.co/rhasspy/piper-voices].
+
+== Unloading models
+
+`Piper` has no `unload()` method because it doesn't need one: dropping a `Piper` value releases
+its ONNX Runtime session, and the native memory backing it, immediately. To unload a model on
+demand — e.g. to swap voices in a long-running app — hold it behind an `Option<Piper>` and
+assign `None` to it. See `examples/unload_model.rs` in the repository.
+
+== Credits
+
+This project is inspired by https://github.com/mush42/sonata[sonata], originally created by
+https://github.com/mush42[mush42].
+
+== License
+
+Licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later): `dengjen-piper-rs`
+links against eSpeak-ng (vendored as a git submodule in `crates/espeak-rs-sys`), which is
+GPL-3.0-or-later, so `piper-rs`, `espeak-rs`, and `espeak-rs-sys` are derivative works under the
+same terms.
