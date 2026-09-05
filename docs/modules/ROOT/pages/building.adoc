@@ -1,0 +1,70 @@
+= Building a distributable binary
+
+`dengjen-espeak-rs-sys`'s build script compiles eSpeak NG's data files (dictionaries, voices,
+phoneme tables) and, since it needs *some* directory to build into, generates them inside
+`target/<profile>/build/dengjen-espeak-rs-sys-<hash>/out/...` — an ephemeral, cache-keyed path
+that disappears the moment `target/` is deleted or the crate is rebuilt with a different hash.
+Copying only the compiled binary out of `target/` and discarding the rest (e.g.
+`cargo build --release` followed by `rm -rf target`) breaks it at runtime with:
+
+[source]
+----
+Failed to initialize eSpeak-ng. Try setting `PIPER_ESPEAKNG_DATA_DIRECTORY`
+to the directory that contains the `espeak-ng-data` directory.
+----
+
+To make this easy, the build script also copies `espeak-ng-data` to
+`target/<profile>/espeak-ng-data`, right next to the binary itself. At runtime,
+`dengjen-espeak-rs` looks for `espeak-ng-data` (in this order) in:
+
+. the directory named by the `PIPER_ESPEAKNG_DATA_DIRECTORY` env var,
+. the current working directory,
+. the directory containing the running executable.
+
+So for a plain `cargo build --release` / `cargo run --release`, it just works — no env var
+needed, since (3) already finds `target/release/espeak-ng-data`.
+
+To ship a binary elsewhere, copy both the binary and its `espeak-ng-data` directory together and
+keep them side by side:
+
+[source,console]
+----
+cargo build --release
+mkdir -p dist
+cp target/release/<your-binary> dist/
+cp -r target/release/espeak-ng-data dist/
+----
+
+If your packaging can't keep them side by side (e.g. the data directory belongs in a shared
+system location), set `PIPER_ESPEAKNG_DATA_DIRECTORY` at runtime to the directory that *contains*
+`espeak-ng-data`.
+
+== Gotchas
+
+=== Link failed on Windows
+
+If you encounter linking errors such as
+
+[source]
+----
+error LNK2019: unresolved external symbol __std_mismatch_1 referenced in function "private: class onnxruntime::common::Status
+----
+
+make sure your Visual Studio is >= 17.11 (update through the Visual Studio Installer).
+
+== Cross-compiling for Linux arm64 (e.g. Raspberry Pi)
+
+[source,console]
+----
+sudo apt-get install crossbuild-essential-arm64 cmake pkg-config libssl-dev
+rustup target add aarch64-unknown-linux-gnu
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+  cargo build --release --target aarch64-unknown-linux-gnu
+----
+
+No `CMAKE_TOOLCHAIN_FILE`, sysroot variable, or separately-built `libasound` is needed — the
+`cmake`/`cc` crates already recognize the standard `aarch64-linux-gnu-*` cross-compiler naming
+convention that `crossbuild-essential-arm64` installs, and eSpeak-ng's own CMake build skips its
+tests and native-only intonation data when `CMAKE_CROSSCOMPILING` is set. `pkg-config`/
+`libssl-dev` are only needed on the host, for the `openssl-sys` build script (a build-time
+dependency of `ort`), not for the arm64 target itself.

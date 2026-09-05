@@ -1,0 +1,8 @@
+= Installation
+
+[source,console]
+----
+cargo add dengjen-piper-rs
+----
+
+See `examples/` in the repository for usage examples.
