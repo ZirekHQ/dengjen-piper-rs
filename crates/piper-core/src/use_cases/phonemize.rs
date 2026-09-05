@@ -4,8 +4,6 @@ use crate::domain::errors::{PhonemizationError, VoiceLoadError};
 use crate::ports::phonemizer::{Phonemizer, Sentence};
 use crate::registry::VoiceRegistry;
 
-/// Failure modes for the `Phonemize` use case: a voice lookup miss, or a
-/// phonemizer backend failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhonemizeError {
     VoiceNotFound(String),
@@ -38,9 +36,6 @@ impl From<PhonemizationError> for PhonemizeError {
     }
 }
 
-/// Converts input text into phonemes for a registered voice, via the
-/// `Phonemizer` port. This is the direct implementation of the
-/// `/v1/voices/{id}/phonemize` capability (AI_NATIVE_SPEC.md C2, C6, C7).
 pub struct Phonemize<'a> {
     pub phonemizer: &'a dyn Phonemizer,
 }

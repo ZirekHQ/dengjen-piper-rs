@@ -1,10 +1,3 @@
-//! Proves the two-step composition contract documented on `LoadVoice` and
-//! `OrtInferenceEngine::new` (issue #54): a `VoiceRepository::load` call
-//! must happen before `OrtInferenceEngine::new`, to learn the voice's
-//! `sample_rate`; only then can the already-built engine be handed to
-//! `LoadVoice`. Requires a real Piper `.onnx` model; see `real_model.rs`'s
-//! doc comment for how to fetch one.
-
 use dengjen_ort_adapter::OrtInferenceEngine;
 use piper_core::domain::errors::VoiceLoadError;
 use piper_core::domain::phoneme::PhonemeIdMap;
@@ -34,9 +27,6 @@ fn engine_built_from_the_loaded_voice_s_sample_rate_passes_load_voice() {
             length_scale: 1.0,
             noise_w: 0.8,
         },
-        // The fixture at `tests/fixtures/model.onnx` (see `real_model.rs`'s
-        // doc comment) is a multi-speaker model (4 input tensors); match
-        // that here so this test exercises the real arity check.
         num_speakers: 2,
         speaker_map: SpeakerMap::new(),
         phoneme_id_map: PhonemeIdMap::new(),
@@ -44,16 +34,11 @@ fn engine_built_from_the_loaded_voice_s_sample_rate_passes_load_voice() {
     };
     let repository = FixedVoiceRepository(voice.clone());
 
-    // Step 1: load the voice config first — the only place `sample_rate`
-    // is known before the engine exists.
     let loaded = repository.load(&voice.voice_id).unwrap();
 
-    // Step 2: construct the engine now that its sample_rate is known.
     let engine = OrtInferenceEngine::new(&model_path, loaded.audio.sample_rate)
         .expect("real model should load");
 
-    // Step 3: hand both to `LoadVoice`, which re-loads the voice and
-    // validates the engine's arity against it.
     let mut registry = VoiceRegistry::new();
     LoadVoice {
         repository: &repository,

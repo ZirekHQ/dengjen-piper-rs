@@ -1,11 +1,3 @@
-//! `dengjen-fs-voice-repo`: a `VoiceRepository` implementation that loads a
-//! `Voice` from a `<voice_id>.onnx.json` sidecar file — the on-disk schema
-//! real Piper voice distributions (e.g. rhasspy/piper-voices) already use.
-//! Does not touch the paired `.onnx` model file: `Voice` carries no
-//! model-path field by design, since pairing a loaded `Voice` with a
-//! loaded `InferenceEngine` for the same voice id is Phase 3's concern
-//! (`piper-service`), not this port's.
-
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -15,9 +7,6 @@ use piper_core::domain::voice::{AudioConfig, InferenceDefaults, Voice};
 use piper_core::ports::voice_repository::VoiceRepository;
 use serde::Deserialize;
 
-/// The on-disk JSON schema (`<voice_id>.onnx.json`), private to this
-/// adapter — piper-core's own `Voice` stays free of any serde/JSON-format
-/// concern, per the hexagonal boundary the `VoiceRepository` port draws.
 #[derive(Deserialize)]
 struct RawModelConfig {
     audio: RawAudioConfig,
@@ -63,7 +52,6 @@ fn raw_config_to_voice(voice_id: &str, raw: RawModelConfig) -> Voice {
     }
 }
 
-/// Loads a `Voice` from `<base_dir>/<voice_id>.onnx.json`.
 pub struct FsVoiceRepository {
     base_dir: PathBuf,
 }
@@ -76,16 +64,6 @@ impl FsVoiceRepository {
     }
 }
 
-/// `voice_id` must resolve to exactly one plain path component — rejects
-/// empty strings, `.`, `..`, absolute paths, and any value containing a
-/// path separator. An absolute or `..`-laden `voice_id` would otherwise
-/// escape `base_dir` when joined (an absolute path makes `PathBuf::join`
-/// discard the base entirely; `..` walks out via normal OS resolution).
-///
-/// The raw-string separator check runs first because `Path::components()`
-/// normalizes away trailing separators (`"foo/"` collapses to the single
-/// component `Normal("foo")`), which would otherwise let a trailing slash
-/// pass despite `load()` joining the raw, unnormalized `voice_id`.
 fn is_safe_voice_id(voice_id: &str) -> bool {
     !voice_id.contains('/')
         && !voice_id.contains('\\')
@@ -204,8 +182,6 @@ mod tests {
         let config_path = tmp.path().join("locked-voice.onnx.json");
         std::fs::set_permissions(&config_path, std::fs::Permissions::from_mode(0o000)).unwrap();
 
-        // Root (and some container filesystems) ignores permission bits, so
-        // the NotFound/IoFailure distinction can't be observed there.
         let running_as_root = std::fs::File::open(&config_path).is_ok();
 
         let result = if running_as_root {

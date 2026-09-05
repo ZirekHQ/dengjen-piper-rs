@@ -3,20 +3,6 @@ use crate::ports::inference_engine::InferenceEngine;
 use crate::ports::voice_repository::VoiceRepository;
 use crate::registry::VoiceRegistry;
 
-/// Loads a voice via its `VoiceRepository`, validates it against the
-/// `InferenceEngine`'s actual model arity, and registers it into the
-/// `VoiceRegistry` for the hot synthesis path to look up later.
-///
-/// `engine` must already be constructed when `execute` is called. For an
-/// engine whose construction itself needs a value that only the `Voice`
-/// carries (e.g. `dengjen-ort-adapter`'s `OrtInferenceEngine::new`, which
-/// needs `sample_rate`), the composition root must load the voice twice: once
-/// itself, to read that value and build the engine, then again implicitly
-/// here, when `execute` calls `repository.load` to validate and register it.
-/// That second, redundant config read is intentional — voice loading is a
-/// cold path (`VoiceRegistry`'s doc comment), so the cost is negligible, and
-/// it keeps `InferenceEngine` construction entirely out of this use case
-/// rather than giving `LoadVoice` an adapter-specific factory port.
 pub struct LoadVoice<'a> {
     pub repository: &'a dyn VoiceRepository,
     pub engine: &'a dyn InferenceEngine,

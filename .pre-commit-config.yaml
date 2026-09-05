@@ -17,7 +17,4 @@ repos:
       - id: fmt
       - id: cargo-check
       - id: clippy
-        # Matches .github/workflows/rust-lint.yml's clippy job: --lib --bins (not
-        # --all-targets) to skip the `rodio` dev-dependency's alsa requirement, and no
-        # --all-features since espeak-rs/espeak-ng are mutually exclusive backends.
         args: ["--workspace", "--lib", "--bins", "--", "-D", "warnings"]

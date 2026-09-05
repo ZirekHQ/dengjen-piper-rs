@@ -8,7 +8,6 @@ repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 edition = "2024"
 
 [dependencies]
-# Local crates
 espeak-rs-sys = { path = "../espeak-rs-sys", package = "dengjen-espeak-rs-sys", version = "0.2.0" }
 
 

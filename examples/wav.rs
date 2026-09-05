@@ -1,11 +1,3 @@
-/*
-git submodule update --init
-
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx.json
-cargo run --example wav en_US-libritts_r-medium.onnx.json output.wav 50
-*/
-
 use dengjen_piper_rs::Piper;
 use std::io::Write;
 use std::path::Path;
@@ -25,7 +17,6 @@ fn main() {
         .create(text, false, speaker_id, None, None, None)
         .unwrap();
 
-    // Convert f32 samples to i16 PCM and write a WAV file
     let samples_i16: Vec<i16> = samples
         .iter()
         .map(|&s| (s * i16::MAX as f32) as i16)

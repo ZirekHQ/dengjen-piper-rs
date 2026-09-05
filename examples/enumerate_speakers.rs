@@ -1,11 +1,3 @@
-/*
-git submodule update --init
-
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/libritts_r/medium/en_US-libritts_r-medium.onnx.json
-cargo run --example enumerate_speakers en_US-libritts_r-medium.onnx.json
-*/
-
 use dengjen_piper_rs::Piper;
 use std::path::Path;
 

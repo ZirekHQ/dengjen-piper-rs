@@ -1,5 +1,3 @@
-//! The `VoiceRepository` port contract.
-
 #[macro_export]
 macro_rules! voice_repository_contract_tests {
     ($make:expr, $known_voice_id:expr) => {

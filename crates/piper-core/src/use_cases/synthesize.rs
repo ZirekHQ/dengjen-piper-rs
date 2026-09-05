@@ -8,9 +8,6 @@ use crate::registry::VoiceRegistry;
 
 use super::phonemize::{Phonemize, PhonemizeError};
 
-/// The result of a successful synthesis: audio plus any non-fatal
-/// degradation encountered while encoding phonemes (design §6 — unmapped
-/// phonemes return audio with a warning, not a silent drop or hard failure).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SynthesizeOutcome {
     pub audio: SynthesizedAudio,
@@ -35,9 +32,6 @@ impl From<PhonemizeError> for SynthesizeError {
     }
 }
 
-/// Orchestrates the full hot-path synthesis flow (design §4): look up the
-/// voice, phonemize the text, encode phonemes to ids, resolve inference
-/// parameters against the voice's defaults, then run inference.
 pub struct Synthesize<'a> {
     pub phonemizer: &'a dyn Phonemizer,
     pub engine: &'a mut dyn InferenceEngine,
@@ -237,7 +231,6 @@ mod tests {
             received_params: None,
             received_ids: None,
         };
-        // 'b' is deliberately absent from the map.
         let registry = registry_with_voice(full_map());
 
         let outcome = {
@@ -255,10 +248,6 @@ mod tests {
             outcome.warnings,
             vec![PhonemizationWarning::UnmappedPhoneme { phoneme: 'b' }]
         );
-        // Proves the dropped phoneme's absence isn't just asserted at the
-        // domain layer (Task 1's drops_unmapped_phonemes_and_warns) but
-        // actually reaches the engine this way: 'a' -> [10], 'b' dropped
-        // entirely (no ids, no trailing PAD for it), wrapped in BOS/EOS.
         assert_eq!(
             engine.received_ids,
             Some(PhonemeIdSequence(vec![1, 10, 0, 2]))
