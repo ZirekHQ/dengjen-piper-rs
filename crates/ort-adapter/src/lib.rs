@@ -1,4 +1,3 @@
-
 use ndarray::{Array1, Array2};
 use ort::session::Session;
 use ort::value::Tensor;

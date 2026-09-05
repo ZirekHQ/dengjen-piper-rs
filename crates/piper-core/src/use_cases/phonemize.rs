@@ -36,9 +36,6 @@ impl From<PhonemizationError> for PhonemizeError {
     }
 }
 
-/// Converts input text into phonemes for a registered voice, via the
-/// `Phonemizer` port. This is the direct implementation of the
-/// `/v1/voices/{id}/phonemize` capability (AI_NATIVE_SPEC.md C2, C6, C7).
 pub struct Phonemize<'a> {
     pub phonemizer: &'a dyn Phonemizer,
 }

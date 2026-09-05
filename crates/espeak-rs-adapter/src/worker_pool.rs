@@ -98,11 +98,6 @@ mod tests {
         );
     }
 
-    /// Closes #52: a backend timeout must reach the caller as
-    /// `PhonemizationError::Timeout`, not fold into the same
-    /// `BackendFailure` bucket as every other backend error, so callers can
-    /// tell "never responded" apart from other failures (e.g. to map it onto
-    /// a distinct HTTP status downstream).
     #[test]
     fn phonemize_maps_a_processor_timeout_to_phonemization_timeout() {
         let pool = PhonemizerWorkerPool::with_processor(4, |_text, _voice| {
@@ -116,11 +111,6 @@ mod tests {
 
     #[test]
     fn a_full_queue_returns_queue_full_without_blocking() {
-        // `phonemize` is itself fully synchronous — it blocks its caller
-        // on `response.recv()` until the worker replies — so this needs
-        // genuinely concurrent callers, not sequential calls from one
-        // thread: a single dequeue by the worker instantly frees the
-        // channel's buffer slot again, so a *sequential* second call would
         let (release_tx, release_rx) = mpsc::channel::<()>();
         let release_rx = std::sync::Mutex::new(release_rx);
         let pool = PhonemizerWorkerPool::with_processor(1, move |_text, _voice| {
@@ -141,8 +131,8 @@ mod tests {
                 "job C should have hit a full queue: {result_c:?}"
             );
 
-            release_tx.send(()).ok(); 
-            release_tx.send(()).ok(); 
+            release_tx.send(()).ok();
+            release_tx.send(()).ok();
 
             assert!(
                 handle_a.join().unwrap().is_ok(),

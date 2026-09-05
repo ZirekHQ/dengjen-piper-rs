@@ -1,5 +1,3 @@
-
-
 use dengjen_piper_rs::Piper;
 use std::io::Write;
 use std::path::Path;

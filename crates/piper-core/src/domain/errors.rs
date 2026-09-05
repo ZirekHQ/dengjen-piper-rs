@@ -21,9 +21,6 @@ impl fmt::Display for VoiceLoadError {
 
 impl std::error::Error for VoiceLoadError {}
 
-/// Failure modes for the `Phonemizer` port (design §6). `QueueFull` and
-/// `Timeout` are distinct so a caller can tell "too much concurrent load"
-/// apart from "the backend never responded" — today's legacy system has no
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhonemizationError {
     Timeout,
@@ -43,9 +40,6 @@ impl fmt::Display for PhonemizationError {
 
 impl std::error::Error for PhonemizationError {}
 
-/// Failure modes for the `InferenceEngine` port (design §6). `ArityMismatch`
-/// is raised at `LoadVoice` time by a validating adapter, not discovered
-/// opaquely on the first inference call (closes AI_NATIVE_SPEC.md §6 item 5).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InferenceError {
     ArityMismatch { expected: usize, actual: usize },

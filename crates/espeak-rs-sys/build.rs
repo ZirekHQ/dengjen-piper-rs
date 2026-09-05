@@ -108,12 +108,6 @@ fn resolve_espeak_ng_source<'a>(espeak_src: &'a Path, bundle_path: &'a Path) -> 
     }
 }
 
-/// Decompresses and unpacks `bundle` (an xz-compressed tar, as produced by
-/// scripts/bundle-espeak-ng.sh) into `dst`, atomically -- same tmp-dir+rename
-/// approach as [`copy_folder`] and for the same reason: `dst.exists()` is
-/// used elsewhere to skip re-preparing the source on a later build reusing
-/// the same `OUT_DIR`, so a partial extraction left behind by a failure
-/// would poison every subsequent build.
 fn extract_xz_tar_bundle(bundle: &Path, dst: &Path) {
     assert!(
         bundle.exists(),
@@ -153,7 +147,6 @@ fn extract_xz_tar_bundle(bundle: &Path, dst: &Path) {
     std::fs::rename(&tmp_dst, dst).expect("Failed to move extracted bundle into place");
 }
 
-/// Name of the directory CMake installs eSpeak NG's runtime data under
 const ESPEAK_NG_DATA_DIR_NAME: &str = "espeak-ng-data";
 
 fn copy_espeak_ng_data_next_to_binary(out_dir: &Path, target_dir: &Path) {
@@ -240,8 +233,6 @@ fn android_abi(target_arch: &str) -> &'static str {
     }
 }
 
-/// Resolves the Android NDK installation directory from the first of
-/// `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, or `NDK_HOME` that is set.
 fn android_ndk_home() -> String {
     ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "NDK_HOME"]
         .into_iter()
@@ -252,7 +243,6 @@ fn android_ndk_home() -> String {
         )
 }
 
-/// Locates the Android NDK's CMake toolchain file under `ndk_home`.
 fn android_toolchain_file(ndk_home: &str) -> PathBuf {
     let toolchain_file = Path::new(ndk_home)
         .join("build")
@@ -277,7 +267,6 @@ fn ndk_host_tag() -> &'static str {
     }
 }
 
-/// Locates the NDK's unified sysroot (bionic libc + Android-specific
 fn android_sysroot(ndk_home: &str) -> PathBuf {
     let sysroot = Path::new(ndk_home)
         .join("toolchains")
@@ -512,7 +501,7 @@ mod tests {
     fn unix_copy_succeeds_only_on_exit_code_zero() {
         assert!(copy_succeeded(false, Some(0)));
         assert!(!copy_succeeded(false, Some(1)));
-        assert!(!copy_succeeded(false, None)); 
+        assert!(!copy_succeeded(false, None));
     }
 
     #[test]
@@ -900,7 +889,6 @@ fn main() {
 
     debug_log!("Bindings Created");
 
-
     let mut config = Config::new(&espeak_dst);
 
     config.define(
@@ -940,7 +928,7 @@ fn main() {
                 "OFF"
             },
         )
-        .very_verbose(std::env::var("CMAKE_VERBOSE").is_ok()) 
+        .very_verbose(std::env::var("CMAKE_VERBOSE").is_ok())
         .always_configure(false);
 
     let bindings_dir = config.build();
@@ -1006,11 +994,11 @@ fn main() {
         }
     }
 
-    if target.contains("apple") {
-        if let Some(path) = macos_link_search_path() {
-            println!("cargo:rustc-link-lib=clang_rt.osx");
-            println!("cargo:rustc-link-search={}", path);
-        }
+    if target.contains("apple")
+        && let Some(path) = macos_link_search_path()
+    {
+        println!("cargo:rustc-link-lib=clang_rt.osx");
+        println!("cargo:rustc-link-search={}", path);
     }
 
     if build_shared_libs {

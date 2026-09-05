@@ -1,4 +1,3 @@
-
 mod worker_pool;
 
 use piper_core::domain::errors::PhonemizationError;

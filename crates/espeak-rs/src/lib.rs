@@ -36,17 +36,8 @@ pub type ESpeakResult<T> = Result<T, ESpeakError>;
 
 static ESPEAK_INIT: OnceLock<ESpeakResult<()>> = OnceLock::new();
 
-// libespeak-ng keeps all state (current voice, output buffers, clause cursor)
-// as process-global C statics; calling into it from more than one thread at a
-// time corrupts that state and has been observed to segfault. Serialize every
-// call behind a single lock rather than relying on the caller to do so.
 static ESPEAK_LOCK: Mutex<()> = Mutex::new(());
 
-// `espeak_TextToPhonemes` is a synchronous, blocking C call with no
-// cancellation mechanism, so this can only bound the number of clause-by-
-// clause calls we're willing to make in a row - it's checked *between*
-// calls, not inside one. It cannot interrupt a single call that never
-// returns: espeak's global state (guarded by ESPEAK_LOCK above) makes it
 const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 fn init_espeak() -> ESpeakResult<()> {
@@ -242,7 +233,6 @@ pub fn text_to_phonemes(
 
     Ok(sentences)
 }
-
 
 #[cfg(test)]
 mod espeak_error_tests {

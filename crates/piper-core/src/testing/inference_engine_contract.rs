@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! inference_engine_contract_tests {
     ($make:expr) => {

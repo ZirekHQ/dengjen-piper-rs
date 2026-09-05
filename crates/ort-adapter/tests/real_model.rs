@@ -1,4 +1,3 @@
-
 use dengjen_ort_adapter::OrtInferenceEngine;
 use piper_core::domain::inference::ResolvedInferenceParams;
 use piper_core::domain::phoneme::PhonemeIdSequence;

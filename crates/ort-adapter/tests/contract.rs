@@ -1,4 +1,3 @@
-
 use dengjen_ort_adapter::OrtInferenceEngine;
 use piper_core::ports::inference_engine::InferenceEngine;
 

@@ -1,4 +1,3 @@
-
 #[macro_export]
 macro_rules! phonemizer_contract_tests {
     ($make:expr) => {

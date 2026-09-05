@@ -1,5 +1,3 @@
-
-
 use dengjen_piper_rs::Piper;
 use rodio::buffer::SamplesBuffer;
 use std::num::NonZero;
