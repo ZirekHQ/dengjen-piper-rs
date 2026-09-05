@@ -21,8 +21,8 @@ To make this easy, the build script also copies `espeak-ng-data` to
 . the current working directory,
 . the directory containing the running executable.
 
-So for a plain `cargo build --release` / `cargo run`, it just works — no env var needed, since
-(3) already finds `target/release/espeak-ng-data`.
+So for a plain `cargo build --release` / `cargo run --release`, it just works — no env var
+needed, since (3) already finds `target/release/espeak-ng-data`.
 
 To ship a binary elsewhere, copy both the binary and its `espeak-ng-data` directory together and
 keep them side by side:
@@ -56,7 +56,7 @@ make sure your Visual Studio is >= 17.11 (update through the Visual Studio Insta
 
 [source,console]
 ----
-sudo apt-get install crossbuild-essential-arm64 pkg-config libssl-dev
+sudo apt-get install crossbuild-essential-arm64 cmake pkg-config libssl-dev
 rustup target add aarch64-unknown-linux-gnu
 CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
   cargo build --release --target aarch64-unknown-linux-gnu

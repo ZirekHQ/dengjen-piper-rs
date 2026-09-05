@@ -19,22 +19,27 @@ jobs:
     steps:
       - name: Resolve ref
         id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          DEFAULT_REF: ${{ github.ref_name }}
         run: |
-          if [ "${{ github.event_name }}" = "release" ]; then
-            echo "ref=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          if [ "$EVENT_NAME" = "release" ]; then
+            echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ inputs.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${INPUT_REF:-$DEFAULT_REF}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Dispatch update to docs site
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
         with:
           token: ${{ secrets.DOCS_DISPATCH_TOKEN }}
           repository: ZirekHQ/ZirekHQ.github.io
           event-type: update-docs
           client-payload: |-
             {
-              "repository": "${{ github.repository }}",
-              "ref": "${{ steps.resolve.outputs.ref }}",
-              "actor": "${{ github.actor }}"
+              "repository": ${{ toJSON(github.repository) }},
+              "ref": ${{ toJSON(steps.resolve.outputs.ref) }},
+              "actor": ${{ toJSON(github.actor) }}
             }

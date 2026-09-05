@@ -8,7 +8,7 @@ Use https://github.com/OHF-Voice/piper1-gpl[Piper] TTS models in Rust.
 
 * Compatibility with all Piper TTS models
 * Support for multiple languages
-* High performance with pure Rust implementation
+* High performance with a pure Rust API (eSpeak NG is vendored and built via CMake/bindgen)
 
 == Models
 
@@ -31,5 +31,5 @@ https://github.com/mush42[mush42].
 
 Licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later): `dengjen-piper-rs`
 links against eSpeak-ng (vendored as a git submodule in `crates/espeak-rs-sys`), which is
-GPL-3.0-or-later, so `piper-rs`, `espeak-rs`, and `espeak-rs-sys` are derivative works under the
-same terms.
+GPL-3.0-or-later, so `dengjen-piper-rs`, `dengjen-espeak-rs`, and `dengjen-espeak-rs-sys` are
+derivative works under the same terms.
