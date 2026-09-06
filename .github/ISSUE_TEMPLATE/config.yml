@@ -4,5 +4,5 @@ contact_links:
     url: https://github.com/ZirekHQ/dengjen-piper-rs/blob/main/README.md
     about: Start here for install instructions and examples.
   - name: Build issues
-    url: https://github.com/ZirekHQ/dengjen-piper-rs/blob/main/BUILDING.md
+    url: https://github.com/ZirekHQ/dengjen-piper-rs/blob/main/.github/CONTRIBUTING.md#building-a-distributable-binary
     about: Known linker/build gotchas, e.g. the Windows LNK2019 issue.
