@@ -8,7 +8,7 @@ repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 edition = "2024"
 
 [dependencies]
-espeak-rs-sys = { path = "../espeak-rs-sys", package = "dengjen-espeak-rs-sys", version = "0.2.0" }
+espeak-rs-sys = { path = "../espeak-rs-sys", package = "dengjen-espeak-rs-sys", version = "0.2.1" }
 
 
 [features]
