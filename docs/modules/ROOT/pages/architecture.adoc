@@ -45,13 +45,13 @@ C4Component
         Component(errors, "lib.rs", "Rust module", "PiperError and the crate's public entry points")
     }
 
-    Container_Boundary(reference, "piper-core workspace member -- dev-dependency only, not yet promoted") {
+    Container_Boundary(reference, "In-progress hexagonal architecture -- separate workspace crates, dev-dependency only, not yet promoted") {
         Component(domain, "piper-core::domain", "Value types", "audio, errors, inference, phoneme")
         Component(ports, "piper-core::ports", "Trait", "InferenceEngine -- the port")
         Component(usecases, "piper-core::use_cases", "Orchestration")
-        Component(ortadapter, "ort-adapter", "Adapter", "Implements InferenceEngine via ort::Session")
-        Component(espeakadapter, "espeak-rs-adapter", "Adapter", "Grapheme-to-phoneme via espeak")
-        Component(voicerepo, "fs-voice-repo", "Adapter", "Loads voice files from disk")
+        Component(ortadapter, "ort-adapter", "Adapter crate", "Implements InferenceEngine via ort::Session")
+        Component(espeakadapter, "espeak-rs-adapter", "Adapter crate", "Grapheme-to-phoneme via espeak")
+        Component(voicerepo, "fs-voice-repo", "Adapter crate", "Loads voice files from disk")
     }
 
     Rel(errors, model, "Uses")
@@ -63,21 +63,22 @@ C4Component
 == Code
 
 The one real, verified port from the in-progress `piper-core` side: an
-`InferenceEngine` trait depending only on domain value types, so any adapter
-(ONNX Runtime today, a stub for tests) can satisfy it without knowing about
-the others.
+`InferenceEngine: Send + Sync` trait depending only on domain value types.
+`OrtInferenceEngine` (in the `ort-adapter` crate) is its only production
+implementor today; a private `FixedOutputEngine` test double also exists,
+but it's defined inline in the port's own `#[cfg(test)]` module, not in
+`stub-adapter` (that crate implements a different port, `Phonemizer`, not
+this one).
 
 [source,mermaid]
 ----
 classDiagram
     class InferenceEngine {
         <<trait>>
-        +infer(ids, params) SynthesizedAudio
-        +validate_arity()
+        +infer(ids, params) Result
+        +validate_arity(expects_speaker_tensor) Result
     }
-    class OrtAdapter
-    class StubAdapter
+    class OrtInferenceEngine
 
-    InferenceEngine <|.. OrtAdapter
-    InferenceEngine <|.. StubAdapter
+    InferenceEngine <|.. OrtInferenceEngine
 ----
