@@ -1,0 +1,83 @@
+= Architecture
+
+This page shows dengjen-piper-rs's own structure as a
+https://c4model.com/[C4] Container, Component, and Code diagram. For how it
+fits into the wider ZirekHQ speech stack, see the
+https://zirekhq.github.io/en/home/architecture.html[org-wide System Context
+diagram]. It has no dependency relationship, in either direction, with
+dengjen-tts -- these are two independent, parallel Piper-format inference
+implementations in the org, not one wrapping the other.
+
+== Container
+
+dengjen-piper-rs is a plain library crate: no CLI, no FFI boundary, no
+Python/Java bindings. It's consumed the ordinary way, via `cargo add`.
+
+[source,mermaid]
+----
+C4Container
+    Person(dev, "Rust developer", "Depends on the crate via Cargo")
+
+    System_Boundary(piperrs, "dengjen-piper-rs") {
+        Container(lib, "dengjen-piper-rs", "Rust library crate (rlib)", "Published to crates.io")
+    }
+
+    System_Ext(voices, "Piper voice catalogue", "e.g. huggingface.co/rhasspy/piper-voices")
+
+    Rel(dev, lib, "cargo add dengjen-piper-rs")
+    Rel(lib, voices, "Loads Piper-format ONNX voices")
+----
+
+== Component
+
+NOTE: The workspace actually contains **two** coexisting designs. The one
+below, under `src/`, is what's actually published and consumed. A second,
+hexagonal (ports-and-adapters) design lives in `crates/piper-core` -- but it's
+pulled in only as a **dev-dependency** of the published crate, exercised via
+`examples/hexagonal_pipeline.rs`, not the crate's real public surface yet.
+Both are shown so this doesn't read as more settled than it is.
+
+[source,mermaid]
+----
+C4Component
+    Container_Boundary(published, "Published crate (src/) -- the real public API") {
+        Component(model, "model.rs", "Rust module", "ModelConfig, infer(), calls ort::Session directly")
+        Component(errors, "lib.rs", "Rust module", "PiperError and the crate's public entry points")
+    }
+
+    Container_Boundary(reference, "piper-core workspace member -- dev-dependency only, not yet promoted") {
+        Component(domain, "piper-core::domain", "Value types", "audio, errors, inference, phoneme")
+        Component(ports, "piper-core::ports", "Trait", "InferenceEngine -- the port")
+        Component(usecases, "piper-core::use_cases", "Orchestration")
+        Component(ortadapter, "ort-adapter", "Adapter", "Implements InferenceEngine via ort::Session")
+        Component(espeakadapter, "espeak-rs-adapter", "Adapter", "Grapheme-to-phoneme via espeak")
+        Component(voicerepo, "fs-voice-repo", "Adapter", "Loads voice files from disk")
+    }
+
+    Rel(errors, model, "Uses")
+    Rel(usecases, ports, "Depends on")
+    Rel(ortadapter, ports, "Implements")
+    Rel(usecases, domain, "Uses")
+----
+
+== Code
+
+The one real, verified port from the in-progress `piper-core` side: an
+`InferenceEngine` trait depending only on domain value types, so any adapter
+(ONNX Runtime today, a stub for tests) can satisfy it without knowing about
+the others.
+
+[source,mermaid]
+----
+classDiagram
+    class InferenceEngine {
+        <<trait>>
+        +infer(ids, params) SynthesizedAudio
+        +validate_arity()
+    }
+    class OrtAdapter
+    class StubAdapter
+
+    InferenceEngine <|.. OrtAdapter
+    InferenceEngine <|.. StubAdapter
+----
