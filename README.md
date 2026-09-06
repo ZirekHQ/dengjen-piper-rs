@@ -2,6 +2,8 @@
 
 [![Crates](https://img.shields.io/crates/v/dengjen-piper-rs?logo=rust&color=F07B3C)](https://crates.io/crates/dengjen-piper-rs/)
 
+[Project board](https://github.com/orgs/ZirekHQ/projects/1) — live roadmap and status for this repo's issues.
+
 Use [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models in Rust.
 
 ## Features
