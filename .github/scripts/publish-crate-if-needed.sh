@@ -22,9 +22,18 @@ version="${2:?usage: publish-crate-if-needed.sh <crate-name> <version>}"
 status="$(curl -s -o /dev/null -w '%{http_code}' \
   -H "User-Agent: dengjen-piper-rs-publish-ci (https://github.com/ZirekHQ/dengjen-piper-rs)" \
   "https://crates.io/api/v1/crates/${crate}/${version}")"
+# dengjen-espeak-rs-sys's Cargo.toml `include`s bundled/espeak-ng.tar.xz,
+# which is deliberately gitignored (regenerated at release time). cargo's
+# dirty-check flags any included-but-untracked file regardless of
+# .gitignore, so only this crate needs --allow-dirty to publish at all.
+extra_args=()
+if [ "$crate" = "dengjen-espeak-rs-sys" ]; then
+  extra_args+=(--allow-dirty)
+fi
+
 case "$status" in
   200) echo "${crate} ${version} is already published -- skipping" ;;
-  404) cargo publish -p "$crate" --locked ;;
+  404) cargo publish -p "$crate" --locked "${extra_args[@]}" ;;
   *)
     echo "::error::Unexpected status ${status} checking crates.io for ${crate} ${version}" >&2
     exit 1
