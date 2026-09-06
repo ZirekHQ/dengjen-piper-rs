@@ -26,7 +26,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
           toolchain: stable
           components: clippy
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
           toolchain: stable
           components: rustfmt
@@ -111,7 +111,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
           toolchain: stable
           components: llvm-tools-preview
