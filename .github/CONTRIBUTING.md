@@ -49,7 +49,8 @@ runtime, `dengjen-espeak-rs` looks for `espeak-ng-data` (in this order) in:
 3. the directory containing the running executable.
 
 So for a plain `cargo build --release` / `cargo run`, it just works — no env
-var needed, since (3) already finds `target/release/espeak-ng-data`.
+var needed, since (3) already finds `target/<profile>/espeak-ng-data` next to
+the binary, whether that's `release` or `cargo run`'s default `debug`.
 
 To ship a binary elsewhere, copy both the binary and its `espeak-ng-data`
 directory together and keep them side by side:
@@ -98,10 +99,11 @@ itself. See issue #16 and the `linux-arm64` CI job for a verified recipe.
 ## Publish new version
 
 Maintainers only. `Cargo.toml`'s `[workspace.package].version` is the single source of truth
-every published crate tracks in lockstep — 6 of the 7 via `version.workspace = true`;
-`crates/espeak-rs-sys` isn't a workspace member (see the comment above `[workspace.package]`), so
-it's hand-synced instead, by the same script that does everything else below. There's no more
-manually bumping individual `Cargo.toml` files, and no manual tagging.
+every published crate tracks in lockstep — 7 of the 8 via `version.workspace = true` (the root
+`dengjen-piper-rs` package plus its 6 workspace members); `crates/espeak-rs-sys` isn't a workspace
+member, so it's hand-synced instead, by the same script that does everything else below. There's
+no more manually bumping individual `Cargo.toml` files, and after the first release (see the
+bootstrap note below), no more manual tagging either.
 
 1. Run the **Prepare release** workflow (`workflow_dispatch`, from the Actions tab). It computes
    the next semver version from Conventional Commit subjects merged since the last `vX.Y.Z` tag
