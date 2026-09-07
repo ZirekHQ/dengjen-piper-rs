@@ -33,7 +33,13 @@ fi
 
 case "$status" in
   200) echo "${crate} ${version} is already published -- skipping" ;;
-  404) cargo publish -p "$crate" --locked "${extra_args[@]}" ;;
+  404)
+    if [ "${DRY_RUN:-}" = "true" ]; then
+      cargo publish -p "$crate" --locked --dry-run "${extra_args[@]}"
+    else
+      cargo publish -p "$crate" --locked "${extra_args[@]}"
+    fi
+    ;;
   *)
     echo "::error::Unexpected status ${status} checking crates.io for ${crate} ${version}" >&2
     exit 1
