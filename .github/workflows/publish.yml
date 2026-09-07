@@ -1,17 +1,8 @@
 name: Publish to crates.io
 
-# Called as a job of tag-and-release.yml right after it tags a merged
-# version-bump PR's commit vX.Y.Z, gated by that workflow's shared `approve`
-# job. Also dispatchable by hand -- from the Actions tab, or `gh workflow run
-# publish.yml` -- which is the retry path if a partial run fails: every
-# step below is idempotent (skips a crate crates.io already has), so
-# re-running this from scratch after a failure is always safe, no new tag
-# needed. No `environment:` gate on the job below -- tag-and-release.yml's
-# shared `approve` job covers it when called from there, but a manual
-# retrigger from this file bypasses that entirely. Deliberately not
-# tag-triggered itself: a `push: tags:` listener here would mean any human
-# pushing an unrelated v*-shaped tag by mistake fires a real, irreversible
-# crates.io publish.
+# Called as a job of tag-and-release.yml's `approve`-gated flow -- a manual retrigger from
+# here bypasses that gate. Idempotent per step, so retrying after a partial failure is safe.
+# No push: tags: trigger: a stray tag push would otherwise fire a real crates.io publish.
 on:
   workflow_dispatch:
     inputs:

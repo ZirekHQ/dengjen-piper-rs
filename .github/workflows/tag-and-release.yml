@@ -1,18 +1,7 @@
 name: Tag and trigger release
 
-# Fires on every push to main, but only acts on the commit that lands
-# prepare-release.yml's version-bump PR (identified by its exact commit
-# subject -- squash- or rebase-merging that PR always produces this
-# message, since it's the only commit on that branch). Every other push to
-# main is a no-op here.
-#
-# Tags that commit vX.Y.Z (the baseline scripts/next-version.sh's next run
-# diffs Conventional Commits from) and calls publish.yml as a job of this
-# same run, gated by a single `environment: release` approval -- merging the
-# bump PR is the last human decision before publish.yml actually runs.
-#
-# Also dispatchable by hand, with `new_tag`/`dry_run` overrides for
-# validating the pipeline without a real bump PR merge.
+# vX.Y.Z is whatever scripts/next-version.sh's next run would compute from Conventional
+# Commits since the last tag.
 on:
   push:
     branches:
@@ -80,10 +69,9 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # This pipeline only ever creates lightweight tags (plain `git tag`), but a human could
-          # still have pushed an annotated one by hand -- ls-remote returns the tag *object* SHA
-          # for those, not the commit it points at, so peel it (^{}) before comparing to GITHUB_SHA,
-          # falling back to the direct ref for the (normal) lightweight case.
+          # A human could push an annotated tag by hand; ls-remote returns its tag-object SHA, not
+          # the commit -- peel via ^{} first, falling back to the direct ref for this pipeline's
+          # normal lightweight tags.
           existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
           if [ -z "$existing" ]; then
             existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
