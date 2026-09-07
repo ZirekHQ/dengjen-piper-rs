@@ -53,14 +53,21 @@ jobs:
           NEW_TAG: ${{ inputs.new_tag }}
         run: |
           set -euo pipefail
+          cargo_version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
           if [ -n "${NEW_TAG:-}" ]; then
             version="${NEW_TAG#v}"
             if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
               echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
               exit 1
             fi
+            # publish.yml re-reads Cargo.toml itself rather than taking VERSION as an input,
+            # so a new_tag that disagrees with it would tag one version and publish another.
+            if [ "$version" != "$cargo_version" ]; then
+              echo "::error::new_tag '${NEW_TAG}' (${version}) doesn't match Cargo.toml's workspace version (${cargo_version})" >&2
+              exit 1
+            fi
           else
-            version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+            version="$cargo_version"
           fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
@@ -73,7 +80,14 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          # This pipeline only ever creates lightweight tags (plain `git tag`), but a human could
+          # still have pushed an annotated one by hand -- ls-remote returns the tag *object* SHA
+          # for those, not the commit it points at, so peel it (^{}) before comparing to GITHUB_SHA,
+          # falling back to the direct ref for the (normal) lightweight case.
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
+          if [ -z "$existing" ]; then
+            existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          fi
           if [ -n "$existing" ]; then
             if [ "$existing" != "$GITHUB_SHA" ]; then
               echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${GITHUB_SHA})" >&2
@@ -108,7 +122,7 @@ jobs:
     if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
     permissions:
       contents: read
-    uses: ./.github/workflows/publish.yml
+    uses: $/.github/workflows/publish.yml
     with:
       dry_run: ${{ inputs.dry_run == true }}
     secrets:
