@@ -37,3 +37,13 @@ to it. See [`examples/unload_model.rs`](examples/unload_model.rs).
 ## Credits
 
 This project is inspired by [sonata](https://github.com/mush42/sonata), originally created by [mush42](https://github.com/mush42).
+
+---
+
+## 💝 Support This Project
+
+If this repository saves you time and effort, please consider supporting it!
+
+- ⭐ [Star on GitHub](https://github.com/ZirekHQ/dengjen-piper-rs)
+- 🐦 [Share on Twitter](https://twitter.com/intent/tweet?text=dengjen-piper-rs%20-%20Piper%20TTS%20models%20in%20Rust&url=https%3A%2F%2Fgithub.com%2FZirekHQ%2Fdengjen-piper-rs)
+- 💖 [More ways to support](https://github.com/ZirekHQ) — Open Collective coming soon
