@@ -1,17 +1,34 @@
 name: Publish to crates.io
 
-# Triggered automatically by tag-and-release.yml right after it tags a
-# merged version-bump PR's commit vX.Y.Z (via `gh workflow run`, using the
-# one event type GITHUB_TOKEN is allowed to start a new run for). Also
-# dispatchable by hand -- from the Actions tab, or `gh workflow run
+# Called as a job of tag-and-release.yml right after it tags a merged
+# version-bump PR's commit vX.Y.Z, gated by that workflow's shared `approve`
+# job. Also dispatchable by hand -- from the Actions tab, or `gh workflow run
 # publish.yml` -- which is the retry path if a partial run fails: every
 # step below is idempotent (skips a crate crates.io already has), so
 # re-running this from scratch after a failure is always safe, no new tag
-# needed. Deliberately not tag-triggered itself: a `push: tags:` listener
-# here would mean any human pushing an unrelated v*-shaped tag by mistake
-# fires a real, irreversible crates.io publish.
+# needed. No `environment:` gate on the job below -- tag-and-release.yml's
+# shared `approve` job covers it when called from there, but a manual
+# retrigger from this file bypasses that entirely. Deliberately not
+# tag-triggered itself: a `push: tags:` listener here would mean any human
+# pushing an unrelated v*-shaped tag by mistake fires a real, irreversible
+# crates.io publish.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry Run: publish nothing"
+        required: false
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      dry_run:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      CARGO_REGISTRY_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -23,6 +40,7 @@ jobs:
       contents: read
     env:
       CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+      DRY_RUN: ${{ inputs.dry_run }}
     steps:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
@@ -82,6 +100,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-core "$VERSION"
       - name: wait for tier 1 to index
+        if: env.DRY_RUN != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
@@ -108,6 +127,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/publish-crate-if-needed.sh dengjen-ort-adapter "$VERSION"
       - name: wait for tier 2 to index
+        if: env.DRY_RUN != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |

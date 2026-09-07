@@ -7,35 +7,41 @@ name: Tag and trigger release
 # main is a no-op here.
 #
 # Tags that commit vX.Y.Z (the baseline scripts/next-version.sh's next run
-# diffs Conventional Commits from) and directly triggers publish.yml,
-# collapsing what used to be two separate manual tag pushes -- push vX.Y.Z,
-# then push a second, differently-named publish-N tag -- into the single
-# "review and merge the bump PR" gate. Pushing to crates.io stays the one
-# thing that isn't automatic beyond that: merging the PR is the last human
-# decision before publish.yml actually runs.
+# diffs Conventional Commits from) and calls publish.yml as a job of this
+# same run, gated by a single `environment: release` approval -- merging the
+# bump PR is the last human decision before publish.yml actually runs.
+#
+# Also dispatchable by hand, with `new_tag`/`dry_run` overrides for
+# validating the pipeline without a real bump PR merge.
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      new_tag:
+        description: "Override the vX.Y.Z tag"
+        required: false
+        type: string
+      dry_run:
+        description: "Dry Run: publish nothing"
+        required: false
+        type: boolean
+        default: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    # head_commit is the single new commit a squash/rebase merge produces;
-    # a push landing more than one new commit at once (not this repo's
-    # normal PR flow) would only inspect the last of them.
-    if: "startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
+    # head_commit is absent on workflow_dispatch, hence the event_name check first. It's also
+    # the single new commit a squash/rebase merge produces; a push landing more than one new
+    # commit at once (not this repo's normal PR flow) would only inspect the last of them.
+    if: "github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
     permissions:
       contents: write
-      # workflow_dispatch is the one event type GITHUB_TOKEN is explicitly
-      # allowed to trigger a new run for -- unlike `push`, which it's
-      # deliberately blocked from re-triggering to prevent recursive runs
-      # (see "Triggering a workflow" in GitHub's Actions docs). No PAT
-      # needed for the "Trigger publish" step below because of that.
-      actions: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -43,22 +49,67 @@ jobs:
 
       - name: Resolve workspace version
         id: version
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
         run: |
           set -euo pipefail
-          version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          if [ -n "${NEW_TAG:-}" ]; then
+            version="${NEW_TAG#v}"
+            if ! echo "$version" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'; then
+              echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
+              exit 1
+            fi
+          else
+            version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
+          fi
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Push release tag
+        if: inputs.dry_run != true
         env:
           VERSION: ${{ steps.version.outputs.version }}
+        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't reliably reflect a tag pushed by an earlier attempt.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
+          existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
+          if [ -n "$existing" ]; then
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "::error::v${VERSION} already exists on origin and points at ${existing}, not this commit (${GITHUB_SHA})" >&2
+              exit 1
+            fi
+            echo "v${VERSION} already exists on origin and points at this commit -- reusing it"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            git tag "v${VERSION}"
+            git push origin "v${VERSION}"
+          else
+            echo "::error::Refusing to create v${VERSION} from ${GITHUB_REF} -- release tags are only created from main" >&2
+            exit 1
+          fi
 
-      - name: Trigger publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run publish.yml --ref main
+  approve:
+    name: Approve release
+    needs: tag-and-release
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    environment: release
+    permissions: {}
+    steps:
+      - env:
+          VERSION: ${{ needs.tag-and-release.outputs.version }}
+        run: echo "Approved v${VERSION} for release"
+
+  # always() is paired with an explicit success-or-skipped check, not a bare "run regardless" --
+  # needed because `approve` is legitimately skipped, not failed, on a dry run.
+  crates:
+    name: crates.io
+    needs: [tag-and-release, approve]
+    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    permissions:
+      contents: read
+    uses: ./.github/workflows/publish.yml
+    with:
+      dry_run: ${{ inputs.dry_run == true }}
+    secrets:
+      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
