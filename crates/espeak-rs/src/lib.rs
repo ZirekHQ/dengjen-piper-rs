@@ -187,22 +187,15 @@ pub fn text_to_phonemes(
             let mut terminator: i32 = 0;
             let terminator_ptr: *mut i32 = &mut terminator;
 
-            let call_result = std::panic::catch_unwind(|| unsafe {
+            // espeak-ng is a C library: a segfault or abort() here takes down the
+            // whole process and can't be caught from Rust, so this call is unguarded.
+            let res = unsafe {
                 espeak_rs_sys::espeak_TextToPhonemesWithTerminator(
                     text_ptr_slot,
                     espeak_rs_sys::espeakCHARS_UTF8 as i32,
                     phoneme_mode,
                     terminator_ptr,
                 )
-            });
-
-            let res = match call_result {
-                Ok(res) => res,
-                Err(_) => {
-                    return Err(ESpeakError::Failure(format!(
-                        "espeak_TextToPhonemes panicked while phonemizing `{language}` text"
-                    )));
-                }
             };
 
             check_deadline(started_at.elapsed(), PHONEMIZATION_TIMEOUT, language)?;
