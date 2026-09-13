@@ -21,7 +21,9 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev
+        # libasound2-dev: the `cargo clippy --tests` step below builds the workspace's
+        # dev-dependencies (rodio -> cpal -> alsa-sys), not just examples/.
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           submodules: recursive
@@ -47,6 +49,8 @@ jobs:
           sarif_file: clippy-results.sarif
       - name: cargo clippy (espeak-ng backend, espeak-rs disabled)
         run: cargo clippy --lib --bins --no-default-features --features espeak-ng -- -D warnings
+      - name: cargo clippy (tests and build scripts)
+        run: cargo clippy --workspace --tests -- -D warnings
 
   audit:
     runs-on: ubuntu-latest

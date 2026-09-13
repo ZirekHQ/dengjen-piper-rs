@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::mem;
 use std::path::PathBuf;
 use std::ptr;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
@@ -34,9 +34,7 @@ impl std::fmt::Display for ESpeakError {
 
 pub type ESpeakResult<T> = Result<T, ESpeakError>;
 
-static ESPEAK_INIT: OnceLock<ESpeakResult<()>> = OnceLock::new();
-
-static ESPEAK_LOCK: Mutex<()> = Mutex::new(());
+static ESPEAK_LOCK: Mutex<bool> = Mutex::new(false);
 
 const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -64,6 +62,18 @@ fn init_espeak() -> ESpeakResult<()> {
     } else {
         Ok(())
     }
+}
+
+fn ensure_initialized(
+    initialized: &mut bool,
+    init: impl FnOnce() -> ESpeakResult<()>,
+) -> ESpeakResult<()> {
+    if *initialized {
+        return Ok(());
+    }
+    init()?;
+    *initialized = true;
+    Ok(())
 }
 
 fn locate_espeak_data() -> Option<PathBuf> {
@@ -139,14 +149,11 @@ pub fn text_to_phonemes(
     language: &str,
     phoneme_separator: Option<char>,
 ) -> ESpeakResult<Vec<String>> {
-    let _guard = ESPEAK_LOCK
+    let mut initialized = ESPEAK_LOCK
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
-    ESPEAK_INIT
-        .get_or_init(init_espeak)
-        .as_ref()
-        .map_err(|e| e.clone())?;
+    ensure_initialized(&mut initialized, init_espeak)?;
 
     let lang_cstr = CString::new(language)
         .map_err(|_| ESpeakError::Failure("Language name contains a null byte".into()))?;
@@ -265,6 +272,40 @@ mod deadline_tests {
     fn ok_when_elapsed_equals_timeout_exactly() {
         let result = check_deadline(Duration::from_secs(5), Duration::from_secs(5), "en-US");
         assert!(result.is_ok());
+    }
+}
+
+#[cfg(test)]
+mod ensure_initialized_tests {
+    use super::*;
+
+    #[test]
+    fn retries_after_a_previous_init_failure() {
+        let mut initialized = false;
+
+        let first = ensure_initialized(&mut initialized, || {
+            Err(ESpeakError::Failure("boom".to_string()))
+        });
+        assert!(first.is_err());
+        assert!(!initialized);
+
+        let second = ensure_initialized(&mut initialized, || Ok(()));
+        assert!(second.is_ok());
+        assert!(initialized);
+    }
+
+    #[test]
+    fn does_not_reinitialize_once_successful() {
+        let mut initialized = true;
+        let mut calls = 0;
+
+        let result = ensure_initialized(&mut initialized, || {
+            calls += 1;
+            Ok(())
+        });
+
+        assert!(result.is_ok());
+        assert_eq!(calls, 0);
     }
 }
 
