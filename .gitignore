@@ -8,6 +8,8 @@ target/
 !.github/*.json
 !tests/fixtures/*.json
 !crates/*/tests/fixtures/*.json
+!crates/*/tests/fixtures/*.onnx
 /.idea/
 /analysis/
 /.worktrees/
+/.superpowers/

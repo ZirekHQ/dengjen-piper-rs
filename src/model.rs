@@ -1,13 +1,7 @@
 use std::collections::HashMap;
 
-use ndarray::{Array1, Array2};
-use ort::session::Session;
-use ort::value::Tensor;
 use serde::Deserialize;
 use unicode_normalization::UnicodeNormalization;
-
-use crate::PiperError;
-use crate::PiperResult;
 
 pub const BOS: char = '^';
 pub const EOS: char = '$';
@@ -40,6 +34,28 @@ pub struct ModelConfig {
     pub phoneme_id_map: HashMap<char, Vec<i64>>,
 }
 
+pub(crate) fn model_config_to_voice(
+    voice_id: &str,
+    config: &ModelConfig,
+) -> piper_core::domain::voice::Voice {
+    piper_core::domain::voice::Voice {
+        voice_id: voice_id.to_string(),
+        audio: piper_core::domain::voice::AudioConfig {
+            sample_rate: config.audio.sample_rate,
+        },
+        inference_defaults: piper_core::domain::voice::InferenceDefaults {
+            noise_scale: config.inference.noise_scale,
+            length_scale: config.inference.length_scale,
+            noise_w: config.inference.noise_w,
+        },
+        num_speakers: config.num_speakers,
+        speaker_map: config.speaker_id_map.clone(),
+        phoneme_id_map: config.phoneme_id_map.clone(),
+        espeak_voice: config.espeak.voice.clone(),
+    }
+}
+
+#[deprecated(note = "use piper_core::domain::phoneme::encode_phonemes")]
 pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
     let map = &config.phoneme_id_map;
     let default_id = [0i64];
@@ -59,54 +75,8 @@ pub fn phonemes_to_ids(config: &ModelConfig, phonemes: &str) -> Vec<i64> {
     ids
 }
 
-pub fn infer(
-    session: &mut Session,
-    config: &ModelConfig,
-    phonemes: &str,
-    noise_scale: f32,
-    length_scale: f32,
-    noise_w: f32,
-    speaker_id: i64,
-) -> PiperResult<Vec<f32>> {
-    let ids = phonemes_to_ids(config, phonemes);
-    let input_len = ids.len();
-    let input = Array2::<i64>::from_shape_vec((1, input_len), ids).unwrap();
-    let input_lengths = Array1::<i64>::from_iter([input_len as i64]);
-    let scales = Array1::<f32>::from_iter([noise_scale, length_scale, noise_w]);
-
-    let input_t = Tensor::<i64>::from_array((
-        [1, input_len],
-        input.into_raw_vec_and_offset().0.into_boxed_slice(),
-    ))
-    .unwrap();
-    let lengths_t = Tensor::<i64>::from_array((
-        [1],
-        input_lengths.into_raw_vec_and_offset().0.into_boxed_slice(),
-    ))
-    .unwrap();
-    let scales_t =
-        Tensor::<f32>::from_array(([3], scales.into_raw_vec_and_offset().0.into_boxed_slice()))
-            .unwrap();
-
-    let outputs = if config.num_speakers > 1 {
-        let sid = Array1::<i64>::from_iter([speaker_id]);
-        let sid_t =
-            Tensor::<i64>::from_array(([1], sid.into_raw_vec_and_offset().0.into_boxed_slice()))
-                .unwrap();
-        session.run(ort::inputs![input_t, lengths_t, scales_t, sid_t])
-    } else {
-        session.run(ort::inputs![input_t, lengths_t, scales_t])
-    }
-    .map_err(|e| PiperError::InferenceError(format!("Inference failed: {}", e)))?;
-
-    let (_, audio) = outputs[0]
-        .try_extract_tensor::<f32>()
-        .map_err(|e| PiperError::InferenceError(format!("Failed to extract output: {}", e)))?;
-
-    Ok(audio.to_vec())
-}
-
 #[cfg(test)]
+#[allow(deprecated)] // exercises phonemes_to_ids directly; local pre-commit and CI both run clippy --all-targets -D warnings
 mod tests {
     use super::*;
 
@@ -185,6 +155,40 @@ mod tests {
             phonemes_to_ids(&config, "\u{00E7}"),
             vec![1, 10, 0, 11, 0, 2]
         );
+    }
+
+    #[test]
+    fn maps_every_model_config_field_onto_the_voice() {
+        let mut phoneme_id_map = HashMap::new();
+        phoneme_id_map.insert('a', vec![10i64]);
+        let mut speaker_id_map = HashMap::new();
+        speaker_id_map.insert("alice".to_string(), 0i64);
+        let config = ModelConfig {
+            audio: AudioConfig { sample_rate: 22050 },
+            espeak: ESpeakConfig {
+                voice: "en-US".to_string(),
+            },
+            inference: InferenceConfig {
+                noise_scale: 0.667,
+                length_scale: 1.0,
+                noise_w: 0.8,
+            },
+            num_speakers: 2,
+            speaker_id_map: speaker_id_map.clone(),
+            phoneme_id_map: phoneme_id_map.clone(),
+        };
+
+        let voice = model_config_to_voice("test-voice", &config);
+
+        assert_eq!(voice.voice_id, "test-voice");
+        assert_eq!(voice.audio.sample_rate, 22050);
+        assert_eq!(voice.espeak_voice, "en-US");
+        assert_eq!(voice.num_speakers, 2);
+        assert_eq!(voice.inference_defaults.noise_scale, 0.667);
+        assert_eq!(voice.inference_defaults.length_scale, 1.0);
+        assert_eq!(voice.inference_defaults.noise_w, 0.8);
+        assert_eq!(voice.speaker_map, speaker_id_map);
+        assert_eq!(voice.phoneme_id_map, phoneme_id_map);
     }
 
     #[cfg(feature = "espeak-rs")]

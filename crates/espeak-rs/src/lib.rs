@@ -64,6 +64,15 @@ fn init_espeak() -> ESpeakResult<()> {
     }
 }
 
+fn acquire_or_fail<T>(lock: &Mutex<T>) -> ESpeakResult<std::sync::MutexGuard<'_, T>> {
+    lock.lock().map_err(|_| {
+        ESpeakError::Failure(
+            "espeak-ng lock poisoned by a prior panic; refusing to touch possibly-corrupted state"
+                .into(),
+        )
+    })
+}
+
 fn ensure_initialized(
     initialized: &mut bool,
     init: impl FnOnce() -> ESpeakResult<()>,
@@ -76,12 +85,21 @@ fn ensure_initialized(
     Ok(())
 }
 
+fn compiled_in_data_dir() -> Option<PathBuf> {
+    let dir = espeak_rs_sys::ESPEAK_NG_DATA_DIR?;
+    let p = PathBuf::from(dir);
+    p.join(ESPEAKNG_DATA_DIR_NAME).exists().then_some(p)
+}
+
 fn locate_espeak_data() -> Option<PathBuf> {
     if let Ok(dir) = env::var(PIPER_ESPEAKNG_DATA_DIRECTORY) {
         let p = PathBuf::from(dir);
         if p.join(ESPEAKNG_DATA_DIR_NAME).exists() {
             return Some(p);
         }
+    }
+    if let Some(dir) = compiled_in_data_dir() {
+        return Some(dir);
     }
     if let Ok(cwd) = env::current_dir()
         && cwd.join(ESPEAKNG_DATA_DIR_NAME).exists()
@@ -149,9 +167,7 @@ pub fn text_to_phonemes(
     language: &str,
     phoneme_separator: Option<char>,
 ) -> ESpeakResult<Vec<String>> {
-    let mut initialized = ESPEAK_LOCK
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut initialized = acquire_or_fail(&ESPEAK_LOCK)?;
 
     ensure_initialized(&mut initialized, init_espeak)?;
 
@@ -269,6 +285,34 @@ mod deadline_tests {
 }
 
 #[cfg(test)]
+mod acquire_or_fail_tests {
+    use super::*;
+
+    #[test]
+    fn ok_when_the_lock_is_not_poisoned() {
+        let lock = Mutex::new(0);
+        assert!(acquire_or_fail(&lock).is_ok());
+    }
+
+    #[test]
+    fn errs_instead_of_recovering_a_poisoned_lock() {
+        let lock = Mutex::new(0);
+        let poison_result = std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let _guard = lock.lock().unwrap();
+                    panic!("simulated corruption while holding the lock");
+                })
+                .join()
+        });
+        assert!(poison_result.is_err());
+
+        let result = acquire_or_fail(&lock);
+        assert!(matches!(result, Err(ESpeakError::Failure(_))));
+    }
+}
+
+#[cfg(test)]
 mod ensure_initialized_tests {
     use super::*;
 
@@ -299,6 +343,68 @@ mod ensure_initialized_tests {
 
         assert!(result.is_ok());
         assert_eq!(calls, 0);
+    }
+}
+
+#[cfg(test)]
+mod compiled_in_data_dir_tests {
+    use super::*;
+
+    #[test]
+    fn returns_a_path_when_the_compiled_in_dir_actually_has_the_data() {
+        // espeak-rs-sys's build script always produces a real data dir in this
+        // workspace's normal build, so this should resolve to Some.
+        assert!(compiled_in_data_dir().is_some());
+    }
+}
+
+#[cfg(test)]
+mod locate_espeak_data_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvVarGuard<'a> {
+        _lock: std::sync::MutexGuard<'a, ()>,
+        original: Option<std::ffi::OsString>,
+    }
+
+    impl Drop for EnvVarGuard<'_> {
+        fn drop(&mut self) {
+            match self.original.take() {
+                Some(v) => unsafe { env::set_var(PIPER_ESPEAKNG_DATA_DIRECTORY, v) },
+                None => unsafe { env::remove_var(PIPER_ESPEAKNG_DATA_DIRECTORY) },
+            }
+        }
+    }
+
+    fn set_env_var(dir: &std::path::Path) -> EnvVarGuard<'static> {
+        let lock = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        let original = env::var_os(PIPER_ESPEAKNG_DATA_DIRECTORY);
+        unsafe { env::set_var(PIPER_ESPEAKNG_DATA_DIRECTORY, dir) };
+        EnvVarGuard {
+            _lock: lock,
+            original,
+        }
+    }
+
+    #[test]
+    fn env_var_wins_over_the_compiled_in_data_dir_when_both_resolve() {
+        // The compiled-in dir must actually resolve here, otherwise this test
+        // would pass for the wrong reason (env var being the only candidate).
+        assert!(compiled_in_data_dir().is_some());
+
+        let override_dir = tempfile::tempdir().expect("create temp dir");
+        std::fs::create_dir_all(override_dir.path().join(ESPEAKNG_DATA_DIR_NAME))
+            .expect("create espeak-ng-data subdir");
+
+        let _guard = set_env_var(override_dir.path());
+
+        assert_eq!(
+            locate_espeak_data(),
+            Some(override_dir.path().to_path_buf())
+        );
     }
 }
 

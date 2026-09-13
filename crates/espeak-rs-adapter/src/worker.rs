@@ -9,12 +9,17 @@ struct Job {
     respond_to: mpsc::Sender<Result<Vec<String>, espeak_rs::ESpeakError>>,
 }
 
-pub(crate) struct PhonemizerWorkerPool {
+/// Dispatches every phonemization call to a single background thread.
+///
+/// Pinned to exactly one worker, not a scalable pool: espeak-ng holds global
+/// mutable C state guarded by one process-wide mutex, so a second worker
+/// thread would just contend on that lock rather than add throughput.
+pub(crate) struct PhonemizerWorker {
     sender: mpsc::SyncSender<Job>,
     _worker: thread::JoinHandle<()>,
 }
 
-impl PhonemizerWorkerPool {
+impl PhonemizerWorker {
     pub(crate) fn with_processor(
         capacity: usize,
         processor: impl Fn(&str, &str) -> Result<Vec<String>, espeak_rs::ESpeakError> + Send + 'static,
@@ -76,7 +81,7 @@ mod tests {
 
     #[test]
     fn phonemize_returns_the_processors_result_on_success() {
-        let pool = PhonemizerWorkerPool::with_processor(4, |text, _voice| {
+        let pool = PhonemizerWorker::with_processor(4, |text, _voice| {
             Ok(vec![format!("processed: {text}")])
         });
 
@@ -87,7 +92,7 @@ mod tests {
 
     #[test]
     fn phonemize_wraps_a_processor_failure_as_backend_failure() {
-        let pool = PhonemizerWorkerPool::with_processor(4, |_text, _voice| {
+        let pool = PhonemizerWorker::with_processor(4, |_text, _voice| {
             Err(espeak_rs::ESpeakError::Failure("boom".to_string()))
         });
 
@@ -100,7 +105,7 @@ mod tests {
 
     #[test]
     fn phonemize_maps_a_processor_timeout_to_phonemization_timeout() {
-        let pool = PhonemizerWorkerPool::with_processor(4, |_text, _voice| {
+        let pool = PhonemizerWorker::with_processor(4, |_text, _voice| {
             Err(espeak_rs::ESpeakError::Timeout("timed out".to_string()))
         });
 
@@ -113,7 +118,7 @@ mod tests {
     fn a_full_queue_returns_queue_full_without_blocking() {
         let (release_tx, release_rx) = mpsc::channel::<()>();
         let release_rx = std::sync::Mutex::new(release_rx);
-        let pool = PhonemizerWorkerPool::with_processor(1, move |_text, _voice| {
+        let pool = PhonemizerWorker::with_processor(1, move |_text, _voice| {
             release_rx.lock().unwrap().recv().ok();
             Ok(vec![])
         });

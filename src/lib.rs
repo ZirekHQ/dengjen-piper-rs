@@ -5,9 +5,17 @@ use std::fs::File;
 use std::path::Path;
 
 use ort::session::Session;
+use ort_adapter::OrtInferenceEngine;
+use piper_core::domain::errors::{InferenceError, PhonemizationError};
+use piper_core::domain::inference::InferenceOverrides;
+use piper_core::domain::phoneme::encode_phonemes;
+use piper_core::domain::voice::Voice;
+use piper_core::ports::inference_engine::InferenceEngine;
+use piper_core::ports::phonemizer::{Phonemizer, Sentence};
 
-use model::infer;
+use model::model_config_to_voice;
 pub use model::{AudioConfig, ESpeakConfig, InferenceConfig, ModelConfig};
+#[allow(deprecated)] // re-export; the deprecation itself is intentional
 pub use model::{BOS, EOS, PAD, phonemes_to_ids};
 
 #[derive(Debug)]
@@ -31,6 +39,8 @@ impl std::error::Error for PiperError {}
 
 pub type PiperResult<T> = Result<T, PiperError>;
 
+const INTERNAL_VOICE_ID: &str = "piper";
+
 #[cfg(feature = "espeak-ng")]
 const PIPER_ESPEAKNG_DATA_DIRECTORY: &str = "PIPER_ESPEAKNG_DATA_DIRECTORY";
 #[cfg(feature = "espeak-ng")]
@@ -44,17 +54,46 @@ fn locate_espeak_ng_data_dir() -> Option<std::path::PathBuf> {
 }
 
 #[cfg(feature = "espeak-ng")]
-fn phonemize_espeak_ng(voice: &str, text: &str) -> PiperResult<String> {
-    let translator = espeak_ng::Translator::new(voice, locate_espeak_ng_data_dir().as_deref())
-        .map_err(|e| PiperError::PhonemizationError(format!("{}", e)))?;
-    translator
-        .text_to_ipa(text)
-        .map_err(|e| PiperError::PhonemizationError(format!("{}", e)))
+struct EspeakNgPhonemizer;
+
+#[cfg(feature = "espeak-ng")]
+impl Phonemizer for EspeakNgPhonemizer {
+    fn phonemize(&self, text: &str, voice: &str) -> Result<Vec<Sentence>, PhonemizationError> {
+        let translator = espeak_ng::Translator::new(voice, locate_espeak_ng_data_dir().as_deref())
+            .map_err(|e| PhonemizationError::BackendFailure(e.to_string()))?;
+        let ipa = translator
+            .text_to_ipa(text)
+            .map_err(|e| PhonemizationError::BackendFailure(e.to_string()))?;
+        Ok(vec![Sentence(ipa)])
+    }
+}
+
+fn build_phonemizer() -> Box<dyn Phonemizer> {
+    #[cfg(feature = "espeak-rs")]
+    {
+        Box::new(espeak_rs_adapter::EspeakRsPhonemizer::default())
+    }
+
+    #[cfg(feature = "espeak-ng")]
+    {
+        Box::new(EspeakNgPhonemizer)
+    }
+
+    #[cfg(all(feature = "espeak-rs", feature = "espeak-ng"))]
+    {
+        compile_error!("Only one of `espeak-rs` or `espeak-ng` can be enabled at a time")
+    }
+
+    #[cfg(not(any(feature = "espeak-rs", feature = "espeak-ng")))]
+    {
+        compile_error!("One of `espeak-rs` or `espeak-ng` must be enabled")
+    }
 }
 
 pub struct Piper {
-    config: ModelConfig,
-    session: Session,
+    voice: Voice,
+    engine: OrtInferenceEngine,
+    phonemizer: Box<dyn Phonemizer>,
 }
 
 impl Piper {
@@ -69,23 +108,29 @@ impl Piper {
         let config: ModelConfig = serde_json::from_reader(file).map_err(|e| {
             PiperError::FailedToLoadResource(format!("Failed to parse config: {}", e))
         })?;
-        let session = Session::builder()
-            .map_err(|e| {
-                PiperError::FailedToLoadResource(format!("Failed to create session builder: {}", e))
-            })?
-            .commit_from_file(model_path)
-            .map_err(|e| {
-                PiperError::FailedToLoadResource(format!(
-                    "Failed to load model `{}`: {}",
-                    model_path.display(),
-                    e
-                ))
-            })?;
-        Ok(Self { config, session })
+        let voice = model_config_to_voice(INTERNAL_VOICE_ID, &config);
+        let engine = OrtInferenceEngine::new(model_path, voice.audio.sample_rate).map_err(|e| {
+            PiperError::FailedToLoadResource(format!(
+                "Failed to load model `{}`: {}",
+                model_path.display(),
+                e
+            ))
+        })?;
+        Ok(Self {
+            voice,
+            engine,
+            phonemizer: build_phonemizer(),
+        })
     }
 
     pub fn from_session(session: Session, config: ModelConfig) -> Self {
-        Self { session, config }
+        let voice = model_config_to_voice(INTERNAL_VOICE_ID, &config);
+        let engine = OrtInferenceEngine::from_session(session, voice.audio.sample_rate);
+        Self {
+            voice,
+            engine,
+            phonemizer: build_phonemizer(),
+        }
     }
 
     pub fn create(
@@ -97,52 +142,38 @@ impl Piper {
         noise_scale: Option<f32>,
         noise_w: Option<f32>,
     ) -> PiperResult<(Vec<f32>, u32)> {
-        let phonemes = if is_phonemes {
-            text.to_string()
+        let sentences = if is_phonemes {
+            vec![Sentence(text.to_string())]
         } else {
-            #[cfg(feature = "espeak-rs")]
-            {
-                espeak_rs::text_to_phonemes(text, &self.config.espeak.voice, None)
-                    .map_err(|e| PiperError::PhonemizationError(format!("{}", e)))?
-                    .join(" ")
-            }
-
-            #[cfg(feature = "espeak-ng")]
-            {
-                phonemize_espeak_ng(&self.config.espeak.voice, text)?
-            }
-
-            #[cfg(all(feature = "espeak-rs", feature = "espeak-ng"))]
-            {
-                compile_error!("Only one of `espeak-rs` or `espeak-ng` can be enabled at a time")
-            }
-
-            #[cfg(not(any(feature = "espeak-rs", feature = "espeak-ng")))]
-            {
-                compile_error!("One of `espeak-rs` or `espeak-ng` must be enabled")
-            }
+            self.phonemizer
+                .phonemize(text, &self.voice.espeak_voice)
+                .map_err(|e: PhonemizationError| PiperError::PhonemizationError(e.to_string()))?
         };
+        let phonemes: String = sentences
+            .into_iter()
+            .map(|s| s.0)
+            .collect::<Vec<_>>()
+            .join(" ");
+        let encoding = encode_phonemes(&self.voice.phoneme_id_map, &phonemes);
 
-        let inf = &self.config.inference;
-        let samples = infer(
-            &mut self.session,
-            &self.config,
-            &phonemes,
-            noise_scale.unwrap_or(inf.noise_scale),
-            length_scale.unwrap_or(inf.length_scale),
-            noise_w.unwrap_or(inf.noise_w),
-            speaker_id.unwrap_or(0),
-        )?;
+        let overrides = InferenceOverrides {
+            speaker_id,
+            length_scale,
+            noise_scale,
+            noise_w,
+        };
+        let params = self.voice.resolve_inference_params(overrides);
 
-        Ok((samples, self.config.audio.sample_rate))
+        let audio = self
+            .engine
+            .infer(&encoding.ids, params)
+            .map_err(|e: InferenceError| PiperError::InferenceError(e.to_string()))?;
+
+        Ok((audio.samples, audio.sample_rate))
     }
 
     pub fn voices(&self) -> Option<&HashMap<String, i64>> {
-        if self.config.speaker_id_map.is_empty() {
-            None
-        } else {
-            Some(&self.config.speaker_id_map)
-        }
+        self.voice.speakers()
     }
 }
 

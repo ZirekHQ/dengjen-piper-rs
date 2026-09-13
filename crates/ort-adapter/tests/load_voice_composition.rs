@@ -15,10 +15,9 @@ impl VoiceRepository for FixedVoiceRepository {
 }
 
 #[test]
-#[ignore = "requires a real .onnx model file; see real_model.rs's doc comment"]
 fn engine_built_from_the_loaded_voice_s_sample_rate_passes_load_voice() {
-    let model_path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/model.onnx");
+    let model_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/model_multi_speaker.onnx");
     let voice = Voice {
         voice_id: "v1".to_string(),
         audio: AudioConfig { sample_rate: 22050 },
