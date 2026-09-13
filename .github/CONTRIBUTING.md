@@ -65,14 +65,15 @@ at it at runtime:
 cargo build --release
 mkdir -p dist
 cp target/release/<your-binary> dist/
-cp -r target/release/build/dengjen-espeak-rs-sys-*/out/share/espeak-ng-data dist/
+DATA_DIR=$(ls -td target/release/build/dengjen-espeak-rs-sys-*/out/share/espeak-ng-data | head -n1)
+cp -r "$DATA_DIR" dist/
 PIPER_ESPEAKNG_DATA_DIRECTORY=dist/ ./dist/<your-binary>
 ```
 
 `dengjen-espeak-rs-sys-*` matches a build-hash suffix that changes across
-profiles/toolchains; if more than one such directory exists (stale ones from
-earlier builds), pick the one modified most recently, or start from a clean
-`target/` so only one exists. See issue #10.
+profiles/toolchains; `ls -td ... | head -n1` picks the most recently modified
+match if more than one such directory exists (stale ones from earlier
+builds). See issue #10.
 
 ## Gotchas
 
