@@ -47,6 +47,9 @@ jobs:
           sarif_file: clippy-results.sarif
       - name: cargo clippy (espeak-ng backend, espeak-rs disabled)
         run: cargo clippy --lib --bins --no-default-features --features espeak-ng -- -D warnings
+      - name: cargo clippy (tests and build scripts)
+        # --tests, unlike --all-targets above, doesn't build examples/ (no rodio needed).
+        run: cargo clippy --workspace --tests -- -D warnings
 
   audit:
     runs-on: ubuntu-latest
