@@ -1,19 +1,19 @@
-mod worker_pool;
+mod worker;
 
 use piper_core::domain::errors::PhonemizationError;
 use piper_core::ports::phonemizer::{Phonemizer, Sentence};
-use worker_pool::PhonemizerWorkerPool;
+use worker::PhonemizerWorker;
 
 const DEFAULT_QUEUE_CAPACITY: usize = 16;
 
 pub struct EspeakRsPhonemizer {
-    pool: PhonemizerWorkerPool,
+    pool: PhonemizerWorker,
 }
 
 impl EspeakRsPhonemizer {
     pub fn new(queue_capacity: usize) -> Self {
         Self {
-            pool: PhonemizerWorkerPool::new(queue_capacity.max(1)),
+            pool: PhonemizerWorker::new(queue_capacity.max(1)),
         }
     }
 }

@@ -14,8 +14,9 @@ description = "Use piper TTS models in Rust"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 
 [dependencies]
-espeak-rs = { path = "crates/espeak-rs", package = "dengjen-espeak-rs", version = "0.2.1", default-features = false, optional = true }
-ndarray = "0.16.1"
+piper-core = { path = "crates/piper-core", package = "dengjen-piper-core", version = "0.2.1" }
+ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter", version = "0.2.1" }
+espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter", version = "0.2.1", optional = true }
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.89"
 ort = { version = "=2.0.0-rc.12" }
@@ -24,15 +25,17 @@ unicode-normalization = "0.1"
 
 [dev-dependencies]
 rodio = "0.22"
-piper-core = { path = "crates/piper-core", package = "dengjen-piper-core" }
 fs-voice-repo = { path = "crates/fs-voice-repo", package = "dengjen-fs-voice-repo" }
 stub-adapter = { path = "crates/stub-adapter", package = "dengjen-stub-adapter" }
-ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter" }
-espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter" }
+espeak-rs = { path = "crates/espeak-rs", package = "dengjen-espeak-rs", default-features = false }
 tempfile = "3.13"
 
 [features]
 default = ["espeak-rs", "compile-espeak-intonations"]
-espeak-rs = ["dep:espeak-rs"]
+espeak-rs = ["dep:espeak-rs-adapter"]
 espeak-ng = ["dep:espeak-ng"]
-compile-espeak-intonations = ["espeak-rs/compile-espeak-intonations"]
+compile-espeak-intonations = ["espeak-rs-adapter?/compile-espeak-intonations"]
+
+[[example]]
+name = "hexagonal_pipeline"
+required-features = ["espeak-rs"]

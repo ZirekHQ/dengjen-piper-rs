@@ -1,4 +1,3 @@
-use ndarray::{Array1, Array2};
 use ort::session::Session;
 use ort::value::Tensor;
 use piper_core::domain::audio::SynthesizedAudio;
@@ -16,35 +15,20 @@ struct InputTensors {
 
 fn build_input_tensors(ids: &PhonemeIdSequence, params: &ResolvedInferenceParams) -> InputTensors {
     let input_len = ids.0.len();
-    let input_arr = Array2::<i64>::from_shape_vec((1, input_len), ids.0.clone())
-        .expect("phoneme id array has exactly (1, input_len) elements by construction");
-    let input_lengths_arr = Array1::<i64>::from_iter([input_len as i64]);
-    let scales_arr =
-        Array1::<f32>::from_iter([params.noise_scale, params.length_scale, params.noise_w]);
 
-    let input = Tensor::<i64>::from_array((
-        [1, input_len],
-        input_arr.into_raw_vec_and_offset().0.into_boxed_slice(),
-    ))
-    .expect("input tensor shape matches the boxed slice's length by construction");
-    let input_lengths = Tensor::<i64>::from_array((
-        [1],
-        input_lengths_arr
-            .into_raw_vec_and_offset()
-            .0
-            .into_boxed_slice(),
-    ))
-    .expect("input_lengths tensor shape matches the boxed slice's length by construction");
+    let input = Tensor::<i64>::from_array(([1, input_len], ids.0.clone()))
+        .expect("input tensor shape matches the vec's length by construction");
+    let input_lengths = Tensor::<i64>::from_array(([1], vec![input_len as i64]))
+        .expect("input_lengths tensor shape matches the vec's length by construction");
     let scales = Tensor::<f32>::from_array((
         [3],
-        scales_arr.into_raw_vec_and_offset().0.into_boxed_slice(),
+        vec![params.noise_scale, params.length_scale, params.noise_w],
     ))
-    .expect("scales tensor shape matches the boxed slice's length by construction");
+    .expect("scales tensor shape matches the vec's length by construction");
 
     let speaker_id = params.speaker_id.map(|sid| {
-        let sid_arr = Array1::<i64>::from_iter([sid]);
-        Tensor::<i64>::from_array(([1], sid_arr.into_raw_vec_and_offset().0.into_boxed_slice()))
-            .expect("speaker id tensor shape matches the boxed slice's length by construction")
+        Tensor::<i64>::from_array(([1], vec![sid]))
+            .expect("speaker id tensor shape matches the vec's length by construction")
     });
 
     InputTensors {
@@ -77,6 +61,13 @@ impl OrtInferenceEngine {
             session,
             sample_rate,
         })
+    }
+
+    pub fn from_session(session: Session, sample_rate: u32) -> Self {
+        Self {
+            session,
+            sample_rate,
+        }
     }
 }
 

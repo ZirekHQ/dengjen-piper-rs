@@ -40,31 +40,39 @@ Failed to initialize eSpeak-ng. Try setting `PIPER_ESPEAKNG_DATA_DIRECTORY`
 to the directory that contains the `espeak-ng-data` directory.
 ```
 
-To make this easy, the build script also copies `espeak-ng-data` to
-`target/<profile>/espeak-ng-data`, right next to the binary itself. At
-runtime, `dengjen-espeak-rs` looks for `espeak-ng-data` (in this order) in:
+To make this easy, the build script bakes that build-cache path into a compile-time
+constant inside the compiled `dengjen-espeak-rs-sys` crate, instead of copying data
+next to the binary. At runtime, `dengjen-espeak-rs` looks for `espeak-ng-data` (in
+this order) in:
 
 1. the directory named by the `PIPER_ESPEAKNG_DATA_DIRECTORY` env var,
-2. the current working directory,
-3. the directory containing the running executable.
+2. the compile-time-baked path (`OUT_DIR/share` at the time the binary was built),
+3. the current working directory,
+4. the directory containing the running executable.
 
-So for a plain `cargo build --release` / `cargo run`, it just works — no env
-var needed, since (3) already finds `target/<profile>/espeak-ng-data` next to
-the binary, whether that's `release` or `cargo run`'s default `debug`.
+So for a plain `cargo build --release` / `cargo run` **on the same machine**, it just
+works — no env var needed, since (2) already resolves to the data baked in during
+that build.
 
-To ship a binary elsewhere, copy both the binary and its `espeak-ng-data`
-directory together and keep them side by side:
+That baked-in path is only valid on the machine and build cache that produced the
+binary: it lives under `target/`, so it disappears the moment `target/` is deleted
+(`rm -rf target`) or the crate rebuilds with a different build hash, and it never
+travels if you copy just the binary elsewhere. To ship a binary elsewhere, copy
+`espeak-ng-data` alongside it explicitly and point `PIPER_ESPEAKNG_DATA_DIRECTORY`
+at it at runtime:
 
 ```console
 cargo build --release
 mkdir -p dist
 cp target/release/<your-binary> dist/
-cp -r target/release/espeak-ng-data dist/
+cp -r target/release/build/dengjen-espeak-rs-sys-*/out/share/espeak-ng-data dist/
+PIPER_ESPEAKNG_DATA_DIRECTORY=dist/ ./dist/<your-binary>
 ```
 
-If your packaging can't keep them side by side (e.g. the data directory
-belongs in a shared system location), set `PIPER_ESPEAKNG_DATA_DIRECTORY` at
-runtime to the directory that *contains* `espeak-ng-data`. See issue #10.
+`dengjen-espeak-rs-sys-*` matches a build-hash suffix that changes across
+profiles/toolchains; if more than one such directory exists (stale ones from
+earlier builds), pick the one modified most recently, or start from a clean
+`target/` so only one exists. See issue #10.
 
 ## Gotchas
 

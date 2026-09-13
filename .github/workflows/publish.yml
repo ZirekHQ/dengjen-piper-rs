@@ -128,13 +128,21 @@ jobs:
           bash .github/scripts/wait-for-crate.sh dengjen-fs-voice-repo "$VERSION"
           bash .github/scripts/wait-for-crate.sh dengjen-ort-adapter "$VERSION"
 
-      # tier 3: dengjen-espeak-rs-adapter (needs piper-core + espeak-rs),
-      # dengjen-piper-rs (needs espeak-rs)
+      # tier 3: dengjen-espeak-rs-adapter (needs piper-core + espeak-rs)
       - name: publish tier 3 (dengjen-espeak-rs-adapter)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/publish-crate-if-needed.sh dengjen-espeak-rs-adapter "$VERSION"
-      - name: publish tier 3 (dengjen-piper-rs)
+      - name: wait for tier 3 to index
+        if: env.DRY_RUN != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/wait-for-crate.sh dengjen-espeak-rs-adapter "$VERSION"
+
+      # tier 4: dengjen-piper-rs (needs espeak-rs-adapter)
+      - name: publish tier 4 (dengjen-piper-rs)
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: bash .github/scripts/publish-crate-if-needed.sh dengjen-piper-rs "$VERSION"
