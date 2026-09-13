@@ -7,8 +7,8 @@ repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 edition = "2024"
 
 [dependencies]
-piper-core = { path = "../piper-core", package = "dengjen-piper-core", version = "0.2.1" }
-espeak-rs = { path = "../espeak-rs", package = "dengjen-espeak-rs", version = "0.2.1", default-features = false }
+piper-core = { path = "../piper-core", package = "dengjen-piper-core", version = "0.2.2" }
+espeak-rs = { path = "../espeak-rs", package = "dengjen-espeak-rs", version = "0.2.2", default-features = false }
 
 [dev-dependencies]
 piper-core = { path = "../piper-core", package = "dengjen-piper-core", features = ["testing"] }
