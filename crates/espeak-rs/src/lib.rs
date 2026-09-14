@@ -94,6 +94,9 @@ fn ensure_initialized(
 }
 
 fn ensure_voice(current: &mut Option<String>, language: &str) -> ESpeakResult<()> {
+    // Not just an optimization: vendored espeak-ng leaks ~1.3KB per genuine
+    // voice switch inside DoVoiceChange (synthesize.c). Skipping redundant
+    // switches here is the actual fix; dropping this reintroduces the leak.
     if current.as_deref() == Some(language) {
         return Ok(());
     }

@@ -4,5 +4,7 @@
 # active voice and skips redundant switches, which eliminates this for the
 # realistic repeated-same-language case; this suppression covers the residual cost
 # of a genuine switch, which this fuzz target's multi-language coverage
-# intentionally still exercises.
+# intentionally still exercises. It also means this fuzz job is NOT a safety net
+# for a regression of that caching in lib.rs's ensure_voice -- if the cache is
+# ever dropped, the leak returns at full rate and this suppression hides it too.
 leak:DoVoiceChange
