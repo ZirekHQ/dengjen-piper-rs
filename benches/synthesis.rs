@@ -40,16 +40,11 @@ fn synthesize(bencher: divan::Bencher) {
 
     let mut piper = dengjen_piper_rs::Piper::new(&model_path, &config_path).expect("load Piper");
 
+    // "test" is the only text this fixture's phoneme_id_map fully covers -- encode_phonemes
+    // silently drops any unmapped phoneme, so other text would benchmark a truncated encoding.
     bencher.bench_local(|| {
         piper
-            .create(
-                "The quick brown fox jumps over the lazy dog.",
-                false,
-                None,
-                None,
-                None,
-                None,
-            )
+            .create("test", false, None, None, None, None)
             .expect("synthesis should succeed")
     });
 }
