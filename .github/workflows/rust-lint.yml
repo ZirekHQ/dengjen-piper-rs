@@ -152,3 +152,29 @@ jobs:
           file: cobertura.xml
           language: Rust
           label: code-coverage/rust
+
+  semver-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: git-submodule-fix
+        run: git config --global protocol.file.allow always
+      - name: install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: cargo semver-checks (workspace crates)
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          feature-group: default-features
+      - name: cargo semver-checks (dengjen-espeak-rs-sys)
+        # espeak-rs-sys isn't a workspace member (see CONTRIBUTING.md), so it needs its
+        # own manifest-path -- the step above never reaches it.
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          manifest-path: crates/espeak-rs-sys/Cargo.toml
+          feature-group: default-features
