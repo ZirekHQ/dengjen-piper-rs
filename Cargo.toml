@@ -4,10 +4,12 @@ resolver = "2"
 
 [workspace.package]
 version = "0.2.4"
+rust-version = "1.88"
 
 [package]
 name = "dengjen-piper-rs"
 version.workspace = true
+rust-version.workspace = true
 edition = "2024"
 license = "GPL-3.0-or-later"
 description = "Use piper TTS models in Rust"

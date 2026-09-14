@@ -1,6 +1,7 @@
 [package]
 name = "dengjen-fs-voice-repo"
 version.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later"
 description = "Filesystem-backed VoiceRepository for dengjen-piper-rs"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
