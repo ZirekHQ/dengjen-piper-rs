@@ -34,7 +34,15 @@ impl std::fmt::Display for ESpeakError {
 
 pub type ESpeakResult<T> = Result<T, ESpeakError>;
 
-static ESPEAK_LOCK: Mutex<bool> = Mutex::new(false);
+struct EspeakState {
+    initialized: bool,
+    current_language: Option<String>,
+}
+
+static ESPEAK_LOCK: Mutex<EspeakState> = Mutex::new(EspeakState {
+    initialized: false,
+    current_language: None,
+});
 
 const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -82,6 +90,22 @@ fn ensure_initialized(
     }
     init()?;
     *initialized = true;
+    Ok(())
+}
+
+fn ensure_voice(current: &mut Option<String>, language: &str) -> ESpeakResult<()> {
+    if current.as_deref() == Some(language) {
+        return Ok(());
+    }
+    let lang_cstr = CString::new(language)
+        .map_err(|_| ESpeakError::Failure("Language name contains a null byte".into()))?;
+    let set_voice = unsafe { espeak_rs_sys::espeak_SetVoiceByName(lang_cstr.as_ptr()) };
+    if set_voice != espeak_rs_sys::espeak_ERROR_EE_OK {
+        return Err(ESpeakError::Failure(format!(
+            "Failed to set voice: `{language}`"
+        )));
+    }
+    *current = Some(language.to_string());
     Ok(())
 }
 
@@ -167,18 +191,10 @@ pub fn text_to_phonemes(
     language: &str,
     phoneme_separator: Option<char>,
 ) -> ESpeakResult<Vec<String>> {
-    let mut initialized = acquire_or_fail(&ESPEAK_LOCK)?;
+    let mut state = acquire_or_fail(&ESPEAK_LOCK)?;
 
-    ensure_initialized(&mut initialized, init_espeak)?;
-
-    let lang_cstr = CString::new(language)
-        .map_err(|_| ESpeakError::Failure("Language name contains a null byte".into()))?;
-    let set_voice = unsafe { espeak_rs_sys::espeak_SetVoiceByName(lang_cstr.as_ptr()) };
-    if set_voice != espeak_rs_sys::espeak_ERROR_EE_OK {
-        return Err(ESpeakError::Failure(format!(
-            "Failed to set voice: `{language}`"
-        )));
-    }
+    ensure_initialized(&mut state.initialized, init_espeak)?;
+    ensure_voice(&mut state.current_language, language)?;
 
     let phoneme_mode = match phoneme_separator {
         Some(c) => ((c as u32) << 8) | espeak_rs_sys::espeakINITIALIZE_PHONEME_IPA,
@@ -346,6 +362,29 @@ mod ensure_initialized_tests {
 }
 
 #[cfg(test)]
+mod ensure_voice_tests {
+    use super::*;
+
+    #[test]
+    fn skips_the_ffi_call_entirely_when_the_language_is_already_active() {
+        // A language containing a null byte would fail CString::new if the FFI path were
+        // reached at all, so Ok(()) here proves the early return fired before that call.
+        let mut current = Some("bad\0lang".to_string());
+        let result = ensure_voice(&mut current, "bad\0lang");
+        assert!(result.is_ok());
+        assert_eq!(current.as_deref(), Some("bad\0lang"));
+    }
+
+    #[test]
+    fn rejects_a_language_with_a_null_byte_when_actually_switching() {
+        let mut current = None;
+        let result = ensure_voice(&mut current, "bad\0lang");
+        assert!(result.is_err());
+        assert_eq!(current, None);
+    }
+}
+
+#[cfg(test)]
 mod compiled_in_data_dir_tests {
     use super::*;
 
@@ -468,6 +507,26 @@ mod tests {
     fn test_it_distinguishes_colon_from_period() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes("Note: it works", "en-US", None)?.join("");
         assert!(phonemes.contains(':'), "Colon not preserved: {phonemes:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn test_repeated_calls_with_the_same_language_stay_correct() -> ESpeakResult<()> {
+        let first = text_to_phonemes("test", "en-US", None)?.join("");
+        let second = text_to_phonemes("test", "en-US", None)?.join("");
+        assert_eq!(first, second);
+        assert_eq!(first, "tˈɛst.");
+        Ok(())
+    }
+
+    #[test]
+    fn test_switching_languages_back_and_forth_stays_correct() -> ESpeakResult<()> {
+        let en = text_to_phonemes("test", "en-US", None)?.join("");
+        let ar = text_to_phonemes("مَرْحَبَاً", "ar", None)?.join("");
+        let en_again = text_to_phonemes("test", "en-US", None)?.join("");
+        assert_eq!(en, "tˈɛst.");
+        assert_eq!(en_again, "tˈɛst.");
+        assert!(!ar.is_empty());
         Ok(())
     }
 
