@@ -110,8 +110,7 @@ jobs:
     if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
     permissions:
       contents: read
-    uses: $/.github/workflows/publish.yml
+      id-token: write
+    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       dry_run: ${{ inputs.dry_run == true }}
-    secrets:
-      CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
