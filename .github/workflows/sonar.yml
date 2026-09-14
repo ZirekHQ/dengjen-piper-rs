@@ -8,8 +8,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# SonarCloud keeps whichever report finishes processing last, not the newest
-# commit, so overlapping scans can leave main showing an older analysis.
+# SonarCloud keeps whichever scan finishes last, not the newest commit, so overlapping scans can strand main on stale analysis.
 concurrency:
   group: sonar-${{ github.ref }}
   cancel-in-progress: true
@@ -20,8 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Fork PRs are never given repository secrets, so SONAR_TOKEN would be empty
-    # and the scan would fail with a red X the contributor cannot clear.
+    # Fork PRs get no repository secrets, so SONAR_TOKEN would be empty and the scan would fail.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

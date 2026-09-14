@@ -1,19 +1,12 @@
 #!/usr/bin/env bash
-# Publishes crate $1 at version $2 unless crates.io already has it -- lets
-# publish.yml be re-run from scratch to retry a partial failure (e.g. one
-# crate publishes, the next 403s on a missing token scope) without `cargo
-# publish` hard-failing on a version crates.io already has.
-#
-# crates.io's API 403s any request without a descriptive User-Agent (the
-# bare "curl/x.y.z" default doesn't qualify) -- set one explicitly or every
-# lookup here fails before it gets to check anything.
-#
-# curl -sf can't tell "confirmed not published" (404) apart from a transient
-# lookup failure (5xx, network blip) -- both are just "nonzero exit" to -f,
-# and treating them the same would attempt a real publish on the transient-
-# failure path, which cargo then rejects hard if the version *is* actually
-# already there. Capture the status code and only branch on a value we've
-# actually seen.
+# Lets publish.yml retry a partial failure (one crate published, the next 403s) by
+# re-running from scratch without cargo publish hard-failing on an already-published version.
+
+# crates.io 403s any request without a descriptive User-Agent (bare "curl/x.y.z" doesn't
+# qualify) -- every lookup here would fail before checking anything without one.
+
+# curl -sf can't tell 404 (not published) from a transient 5xx -- both are just nonzero
+# exit, so capture the real code and branch on a value actually seen.
 set -euo pipefail
 
 crate="${1:?usage: publish-crate-if-needed.sh <crate-name> <version>}"
@@ -22,10 +15,8 @@ version="${2:?usage: publish-crate-if-needed.sh <crate-name> <version>}"
 status="$(curl -s -o /dev/null -w '%{http_code}' \
   -H "User-Agent: dengjen-piper-rs-publish-ci (https://github.com/ZirekHQ/dengjen-piper-rs)" \
   "https://crates.io/api/v1/crates/${crate}/${version}")"
-# dengjen-espeak-rs-sys's Cargo.toml `include`s bundled/espeak-ng.tar.xz,
-# which is deliberately gitignored (regenerated at release time). cargo's
-# dirty-check flags any included-but-untracked file regardless of
-# .gitignore, so only this crate needs --allow-dirty to publish at all.
+# dengjen-espeak-rs-sys's Cargo.toml includes the gitignored bundled/espeak-ng.tar.xz --
+# cargo's dirty-check flags it regardless, so only this crate needs --allow-dirty.
 extra_args=()
 if [ "$crate" = "dengjen-espeak-rs-sys" ]; then
   extra_args+=(--allow-dirty)

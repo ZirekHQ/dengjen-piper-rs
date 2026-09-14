@@ -21,8 +21,7 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install build dependencies
-        # libasound2-dev: the `cargo clippy --all-targets` step below builds the
-        # workspace's dev-dependencies (rodio -> cpal -> alsa-sys), not just examples/.
+        # libasound2-dev: rodio (dev-dep) -> cpal -> alsa-sys needs it on Linux.
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -34,10 +33,8 @@ jobs:
           components: clippy
       - run: cargo install clippy-sarif sarif-fmt --locked
       - name: cargo clippy (default features, espeak-rs backend)
-        # --lib --bins, not --all-targets: examples/ pulls in the `rodio` dev-dependency,
-        # whose `cpal` backend needs libasound2-dev on Linux. Scoped to what actually ships.
         # --all-features is skipped too: src/lib.rs treats espeak-rs and espeak-ng as
-        # mutually exclusive backends and hits a deliberate compile_error if both are on.
+        # mutually exclusive and compile_errors if both are enabled.
         run: |
           set -o pipefail
           cargo clippy --workspace --lib --bins --message-format=json -- -D warnings \
@@ -88,17 +85,10 @@ jobs:
           persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
-          # Licenses/bans/sources are cheap and don't need a full build. Advisories are also
-          # covered by the separate `rustsec/audit-check` job above (kept as belt-and-braces).
+          # No toolchain needed (licenses/bans/sources don't build); advisories are covered by audit-check above.
           command: check licenses bans sources
 
-  # Mirrors CI.yml's `test` job's invocations exactly, but under cargo-llvm-cov
-  # instrumentation, so the Cobertura report reflects the same crates/features
-  # that job actually exercises. Each `cargo test` step there becomes a
-  # `--no-report` llvm-cov run so profiling data accumulates across the
-  # mutually-exclusive feature combinations (espeak-rs vs espeak-ng) and the
-  # single-threaded espeak-ng crates, then a final `report` step renders the
-  # combined Cobertura XML.
+  # Mirrors CI.yml's `test` job exactly (kept in sync intentionally) under llvm-cov instrumentation.
   coverage:
     runs-on: ubuntu-latest
     permissions:
@@ -108,8 +98,7 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
-        # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
-        # not by dengjen-piper-rs itself.
+        # Same libasound2-dev rationale as the clippy job above.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -125,13 +114,11 @@ jobs:
       - name: cargo llvm-cov (dengjen-piper-rs, default features, espeak-rs backend)
         run: cargo llvm-cov --no-report -p dengjen-piper-rs
       - name: cargo llvm-cov (dengjen-espeak-rs, single-threaded)
-        # espeak-ng's global voice-table state isn't thread-safe; the default
-        # parallel test runner corrupts it and segfaults (SIGSEGV). Same
-        # mitigation CI.yml's test job uses for this crate.
+        # espeak-ng's global voice-table state isn't thread-safe; the default parallel
+        # test runner corrupts it and segfaults (SIGSEGV).
         run: cargo llvm-cov --no-report -p dengjen-espeak-rs -- --test-threads=1
       - name: cargo llvm-cov (dengjen-piper-rs, espeak-ng backend, espeak-rs disabled)
-        # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
-        # so each needs its own run rather than a single --all-features build.
+        # Same mutually-exclusive-backends constraint as the clippy job above.
         run: cargo llvm-cov --no-report -p dengjen-piper-rs --no-default-features --features espeak-ng
       - name: cargo llvm-cov (dengjen-espeak-rs-sys, build script unit tests)
         run: cargo llvm-cov --no-report -p dengjen-espeak-rs-sys --test build_script_unit_tests
