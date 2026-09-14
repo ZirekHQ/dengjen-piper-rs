@@ -31,6 +31,7 @@ fs-voice-repo = { path = "crates/fs-voice-repo", package = "dengjen-fs-voice-rep
 stub-adapter = { path = "crates/stub-adapter", package = "dengjen-stub-adapter" }
 espeak-rs = { path = "crates/espeak-rs", package = "dengjen-espeak-rs", default-features = false }
 tempfile = "3.13"
+divan = "0.1.2"
 
 [features]
 default = ["espeak-rs", "compile-espeak-intonations"]
@@ -40,4 +41,9 @@ compile-espeak-intonations = ["espeak-rs-adapter?/compile-espeak-intonations"]
 
 [[example]]
 name = "hexagonal_pipeline"
+required-features = ["espeak-rs"]
+
+[[bench]]
+name = "synthesis"
+harness = false
 required-features = ["espeak-rs"]
