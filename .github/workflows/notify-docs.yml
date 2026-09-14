@@ -26,10 +26,16 @@ jobs:
           DEFAULT_REF: ${{ github.ref_name }}
         run: |
           if [ "$EVENT_NAME" = "release" ]; then
-            echo "ref=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+            ref="$RELEASE_TAG"
           else
-            echo "ref=${INPUT_REF:-$DEFAULT_REF}" >> "$GITHUB_OUTPUT"
+            ref="${INPUT_REF:-$DEFAULT_REF}"
           fi
+          if ! git check-ref-format --branch "$ref" >/dev/null 2>&1 \
+             && ! git check-ref-format "refs/tags/$ref" >/dev/null 2>&1; then
+            echo "Invalid ref: $ref" >&2
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch update to docs site
         uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3
