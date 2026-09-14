@@ -1,0 +1,8 @@
+# espeak-ng leaks a small fixed allocation (~1.3KB) on every genuine voice switch
+# inside DoVoiceChange (synthesize.c) -- confirmed via direct measurement, not
+# fixable without patching vendored C. Our own text_to_phonemes wrapper caches the
+# active voice and skips redundant switches, which eliminates this for the
+# realistic repeated-same-language case; this suppression covers the residual cost
+# of a genuine switch, which this fuzz target's multi-language coverage
+# intentionally still exercises.
+leak:DoVoiceChange
