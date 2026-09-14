@@ -90,24 +90,9 @@ jobs:
             exit 1
           fi
 
-  approve:
-    name: Approve release
-    needs: tag-and-release
-    if: inputs.dry_run != true
-    runs-on: ubuntu-latest
-    environment: release
-    permissions: {}
-    steps:
-      - env:
-          VERSION: ${{ needs.tag-and-release.outputs.version }}
-        run: echo "Approved v${VERSION} for release"
-
-  # always() is paired with an explicit success-or-skipped check, not a bare "run regardless" --
-  # needed because `approve` is legitimately skipped, not failed, on a dry run.
   crates:
     name: crates.io
-    needs: [tag-and-release, approve]
-    if: always() && needs.tag-and-release.result == 'success' && (needs.approve.result == 'success' || needs.approve.result == 'skipped')
+    needs: tag-and-release
     permissions:
       contents: read
       id-token: write
