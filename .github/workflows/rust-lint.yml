@@ -54,6 +54,8 @@ jobs:
         run: cargo clippy --lib --bins --no-default-features --features espeak-ng -- -D warnings
       - name: cargo clippy (tests and build scripts)
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: cargo bench --no-run
+        run: cargo bench --no-run
 
   audit:
     runs-on: ubuntu-latest
