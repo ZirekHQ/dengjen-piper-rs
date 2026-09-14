@@ -8,9 +8,14 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -24,6 +29,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo test (dengjen-piper-rs, default features, espeak-rs backend)
         run: cargo test -p dengjen-piper-rs
       - name: cargo test (dengjen-espeak-rs, single-threaded)
@@ -58,6 +64,7 @@ jobs:
   lint:
     name: clippy (piper-core and Phase 2 adapters)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -71,6 +78,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo clippy (piper-core and Phase 2 adapters, deny warnings)
         run: |
           cargo clippy -p dengjen-piper-core --all-targets -- -D warnings
@@ -85,6 +93,7 @@ jobs:
   android:
     name: cross-compile (aarch64-linux-android)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -100,6 +109,7 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1.6.0
         id: setup-ndk
         with:
@@ -120,6 +130,7 @@ jobs:
   linux-arm64:
     name: cross-compile (aarch64-unknown-linux-gnu)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
@@ -135,6 +146,7 @@ jobs:
         with:
           toolchain: stable
           targets: aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo build (dengjen-piper-rs, aarch64-unknown-linux-gnu)
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
