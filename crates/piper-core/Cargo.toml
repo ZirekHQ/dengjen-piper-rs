@@ -1,6 +1,7 @@
 [package]
 name = "dengjen-piper-core"
 version.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later"
 description = "Domain model, use cases, and port traits for the dengjen-piper-rs TTS platform"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"

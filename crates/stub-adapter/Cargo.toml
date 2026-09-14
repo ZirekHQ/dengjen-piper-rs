@@ -1,6 +1,7 @@
 [package]
 name = "dengjen-stub-adapter"
 version.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later"
 description = "Deterministic, dependency-free Phonemizer test double for dengjen-piper-rs"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"

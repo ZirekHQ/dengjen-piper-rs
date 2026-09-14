@@ -1,6 +1,7 @@
 [package]
 name = "dengjen-espeak-rs-adapter"
 version.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later"
 description = "espeak-rs-backed Phonemizer adapter for dengjen-piper-rs, with a bounded phonemization worker queue"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"

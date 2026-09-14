@@ -1,6 +1,7 @@
 [package]
 name = "dengjen-espeak-rs"
 version.workspace = true
+rust-version.workspace = true
 license = "GPL-3.0-or-later"
 description = "Safe Rust bindings to espeak-ng"
 keywords = ["espeak-ng", "audio", "tts", "speech", "rodio"]
