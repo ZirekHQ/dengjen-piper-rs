@@ -17,8 +17,7 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
-        # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
-        # not by dengjen-piper-rs itself.
+        # libasound2-dev: rodio (dev-dep, used by tests/examples) needs it, not the library itself.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -27,18 +26,15 @@ jobs:
       - name: cargo test (dengjen-piper-rs, default features, espeak-rs backend)
         run: cargo test -p dengjen-piper-rs
       - name: cargo test (dengjen-espeak-rs, single-threaded)
-        # espeak-ng's global voice-table state isn't thread-safe; the default
-        # parallel test runner corrupts it and segfaults (SIGSEGV). Same
-        # mitigation dengjen-tts uses for its espeak-ng-backed crates.
+        # espeak-ng's global voice-table state isn't thread-safe; the default parallel
+        # test runner corrupts it and segfaults (SIGSEGV).
         run: cargo test -p dengjen-espeak-rs -- --test-threads=1
       - name: cargo test (dengjen-piper-rs, espeak-ng backend, espeak-rs disabled)
-        # src/lib.rs gates espeak-rs and espeak-ng as mutually exclusive backends,
-        # so each needs its own run rather than a single --all-features build.
+        # src/lib.rs gates espeak-rs/espeak-ng as mutually exclusive, hence separate runs.
         run: cargo test -p dengjen-piper-rs --no-default-features --features espeak-ng
       - name: cargo test (dengjen-espeak-rs-sys, build script unit tests)
-        # build.rs's own #[cfg(test)] module is registered as a `[[test]]` target
-        # in Cargo.toml (Cargo never tests a build script otherwise); run it
-        # explicitly since `-p dengjen-espeak-rs-sys` isn't exercised by any other step.
+        # build.rs's own #[cfg(test)] module is registered as a [[test]] target since
+        # Cargo never tests a build script otherwise.
         run: cargo test -p dengjen-espeak-rs-sys --test build_script_unit_tests
       - name: cargo test (dengjen-piper-core)
         run: cargo test -p dengjen-piper-core
@@ -49,8 +45,7 @@ jobs:
       - name: cargo test (dengjen-ort-adapter)
         run: cargo test -p dengjen-ort-adapter
       - name: cargo test (dengjen-espeak-rs-adapter, single-threaded)
-        # Same espeak-ng global-state constraint as dengjen-espeak-rs above:
-        # this adapter drives the same non-thread-safe voice-table state.
+        # Same espeak-ng global-state constraint as dengjen-espeak-rs above.
         run: cargo test -p dengjen-espeak-rs-adapter -- --test-threads=1
       - name: check ru_listx dictionary is packaged (#23)
         run: bash .github/scripts/check-ru-listx-packaged.sh
@@ -64,8 +59,7 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
-        # libasound2-dev is needed by the `rodio` dev-dependency (used in tests/examples),
-        # not by dengjen-piper-rs itself.
+        # Same libasound2-dev rationale as the test job above.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -79,9 +73,8 @@ jobs:
           cargo clippy -p dengjen-ort-adapter --all-targets -- -D warnings
           cargo clippy -p dengjen-espeak-rs-adapter --all-targets -- -D warnings
 
-  # Cross-compiling for Android has no unit tests of its own (it's a build
-  # script exercising CMake + the NDK toolchain), so an actual cross-build
-  # is the regression test for it. See issue #9.
+  # No unit tests for Android cross-compilation -- the cross-build itself is the
+  # regression test. See issue #9.
   android:
     name: cross-compile (aarch64-linux-android)
     runs-on: ubuntu-latest
@@ -111,12 +104,8 @@ jobs:
           CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER: ${{ steps.setup-ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang
         run: cargo build -p dengjen-espeak-rs-sys --target aarch64-linux-android
 
-  # Cross-compiling for Linux arm64 (e.g. Raspberry Pi) needs no toolchain
-  # file or sysroot of its own: the `cmake`/`cc` crates already recognize the
-  # standard `aarch64-linux-gnu-*` cross-compiler naming convention that
-  # `crossbuild-essential-arm64` installs, unlike the Android NDK (see the
-  # `android` job above and issue #9). A plain cross-build is still the
-  # regression test for it, same reasoning as that job. See issue #16.
+  # Unlike android above, needs no toolchain file/sysroot: cmake/cc already recognize
+  # the standard aarch64-linux-gnu-* naming crossbuild-essential-arm64 installs. See #16.
   linux-arm64:
     name: cross-compile (aarch64-unknown-linux-gnu)
     runs-on: ubuntu-latest

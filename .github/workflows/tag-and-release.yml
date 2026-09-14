@@ -1,7 +1,5 @@
 name: Tag and trigger release
 
-# vX.Y.Z is whatever scripts/next-version.sh's next run would compute from Conventional
-# Commits since the last tag.
 on:
   push:
     branches:
@@ -23,9 +21,7 @@ permissions: {}
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
-    # head_commit is absent on workflow_dispatch, hence the event_name check first. It's also
-    # the single new commit a squash/rebase merge produces; a push landing more than one new
-    # commit at once (not this repo's normal PR flow) would only inspect the last of them.
+    # head_commit is absent on workflow_dispatch, hence the event_name check first.
     if: "github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
     permissions:
       contents: write
@@ -69,9 +65,8 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # A human could push an annotated tag by hand; ls-remote returns its tag-object SHA, not
-          # the commit -- peel via ^{} first, falling back to the direct ref for this pipeline's
-          # normal lightweight tags.
+          # ls-remote returns an annotated tag's tag-object SHA, not the commit -- peel via ^{}
+          # first, falling back to the direct ref for this pipeline's normal lightweight tags.
           existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
           if [ -z "$existing" ]; then
             existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"

@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Regression guard for #23: espeak-ng's data.cmake wires
-# dictsource/extra/ru_listx into the Russian dictionary automatically
-# (EXTRA_ru option, default ON) whenever compile-espeak-intonations is
-# enabled, but the espeak-ng data bundling can silently drop that file
-# from what actually gets published, degrading Russian pronunciation for
-# anyone building against the published crate.
-#
-# Since #66, the raw espeak-ng/dictsource/** files no longer appear
-# directly in Cargo.toml's `include`: they're pre-compressed into a single
-# bundled/espeak-ng.tar.xz (crates.io's 10MiB .crate cap forced this --
-# see crates/espeak-rs-sys/scripts/bundle-espeak-ng.sh), so the check now
-# has to look inside that generated bundle instead of `cargo package
-# --list`'s flat file list.
+# Regression guard for #23: espeak-ng's build silently drops dictsource/extra/ru_listx
+# from published data, degrading Russian pronunciation despite EXTRA_ru being on by default.
+
+# Since #66, dictsource files are pre-compressed into bundled/espeak-ng.tar.xz (crates.io's
+# 10MiB cap forced this), so this checks inside that bundle instead of a flat file list.
 sys_crate_dir="crates/espeak-rs-sys"
 bundle="$sys_crate_dir/bundled/espeak-ng.tar.xz"
 needle="dictsource/extra/ru_listx"

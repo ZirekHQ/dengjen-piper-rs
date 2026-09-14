@@ -4,9 +4,8 @@ set -euo pipefail
 name="$1"
 version="$2"
 
-# Poll the sparse index cargo actually resolves dependencies against, not the
-# web API: a successful publish response doesn't guarantee the index has been
-# updated yet (https://doc.rust-lang.org/cargo/reference/registry-web-api.html).
+# Poll the sparse index cargo actually resolves dependencies against, not the web API --
+# a successful publish response doesn't guarantee the index is updated yet.
 case "${#name}" in
   1) prefix="1" ;;
   2) prefix="2" ;;

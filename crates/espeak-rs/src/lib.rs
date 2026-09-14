@@ -203,8 +203,7 @@ pub fn text_to_phonemes(
             let mut terminator: i32 = 0;
             let terminator_ptr: *mut i32 = &mut terminator;
 
-            // espeak-ng is a C library: a segfault or abort() here takes down the
-            // whole process and can't be caught from Rust, so this call is unguarded.
+            // A segfault/abort() in this C call takes down the whole process; can't be caught from Rust.
             let res = unsafe {
                 espeak_rs_sys::espeak_TextToPhonemesWithTerminator(
                     text_ptr_slot,
@@ -352,8 +351,7 @@ mod compiled_in_data_dir_tests {
 
     #[test]
     fn returns_a_path_when_the_compiled_in_dir_actually_has_the_data() {
-        // espeak-rs-sys's build script always produces a real data dir in this
-        // workspace's normal build, so this should resolve to Some.
+        // espeak-rs-sys's build script always produces a real data dir in a normal workspace build.
         assert!(compiled_in_data_dir().is_some());
     }
 }
@@ -391,8 +389,7 @@ mod locate_espeak_data_tests {
 
     #[test]
     fn env_var_wins_over_the_compiled_in_data_dir_when_both_resolve() {
-        // The compiled-in dir must actually resolve here, otherwise this test
-        // would pass for the wrong reason (env var being the only candidate).
+        // Must actually resolve here, or this test would pass for the wrong reason (env var only).
         assert!(compiled_in_data_dir().is_some());
 
         let override_dir = tempfile::tempdir().expect("create temp dir");

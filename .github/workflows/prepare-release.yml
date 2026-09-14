@@ -1,12 +1,7 @@
 name: Prepare release
 
-# Computes the next semver version from Conventional Commit subjects merged
-# to main since the last vX.Y.Z tag (scripts/next-version.sh) and opens a PR
-# bumping every hand-synced copy of it (scripts/bump-version.sh). Manual
-# trigger only -- this proposes a release, it doesn't cut one. Merging the
-# PR is the one remaining human gate: tag-and-release.yml then tags that
-# commit vX.Y.Z and triggers publish.yml automatically, no further manual
-# steps.
+# Manual trigger only -- merging the opened PR is the one remaining gate: tag-and-release.yml
+# then tags and publishes automatically, no further steps.
 on:
   workflow_dispatch: {}
 
@@ -22,8 +17,7 @@ jobs:
       - name: git-submodule-fix
         run: git config --global protocol.file.allow always
       - name: install build dependencies
-        # bump-version.sh's `cargo check` builds dengjen-espeak-rs-sys's
-        # build.rs, which needs libclang for bindgen.
+        # bump-version.sh's cargo check builds espeak-rs-sys's build.rs, which needs libclang.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
@@ -39,11 +33,8 @@ jobs:
         id: next
         run: |
           set -uo pipefail
-          # next-version.sh exits 1 for the normal "nothing release-worthy"
-          # case, which this step treats as skip -- but exit 2 (or anything
-          # else unexpected) means the computation itself is broken (e.g. no
-          # vX.Y.Z tag exists at all), and must fail loudly instead, or a
-          # broken tag state would silently suppress every future release.
+          # Only exit 1 means "nothing release-worthy" -- any other nonzero is next-version.sh being
+          # broken and must fail loudly, or a bad tag state would silently suppress every release.
           version="$(bash scripts/next-version.sh)"
           rc=$?
           if [ "$rc" -eq 0 ]; then
