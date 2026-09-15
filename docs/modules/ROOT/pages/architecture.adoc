@@ -82,3 +82,27 @@ classDiagram
 
     InferenceEngine <|.. OrtInferenceEngine
 ----
+
+== Versioning
+
+The workspace shares one `version.workspace = true` across all 6 members,
+the root crate, and the non-member `crates/espeak-rs-sys` -- with one
+exception: `espeak-rs-sys` and `espeak-rs` version independently.
+
+Lockstep stays the default. `piper-core`, its adapters (`ort-adapter`,
+`espeak-rs-adapter`, `stub-adapter`, `fs-voice-repo`), and the root crate
+change together in practice -- every `InferenceEngine`/`VoiceRepo` contract
+change has touched all of them in the same commit. One version number keeps
+"all dengjen-piper-rs crates at a given version are mutually compatible"
+true without per-crate changelog bookkeeping, and matches the tiered publish
+order already in `.github/workflows/publish.yml`.
+
+`espeak-rs-sys` and `espeak-rs` are carved out because they're general-purpose
+espeak-ng FFI bindings, not part of the Piper hexagonal contract, and they're
+the crates that repeatedly change alone (cross-compile fixes, FFI hardening,
+leak fixes). Lockstep was forcing an unrelated republish of all 8 crates on
+every one of those changes.
+
+See https://github.com/ZirekHQ/dengjen-piper-rs/issues/115[#115]. The sibling
+https://github.com/ZirekHQ/dengjen-tts/issues/211[dengjen-tts#211] raised the
+same question for that repo's crates and converged on the same hybrid shape.
