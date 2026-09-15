@@ -1,4 +1,4 @@
-name: Tag and trigger release
+name: Release
 
 on:
   push:

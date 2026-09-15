@@ -1,6 +1,6 @@
 name: Prepare release
 
-# Manual trigger only -- merging the opened PR is the one remaining gate: tag-and-release.yml
+# Manual trigger only -- merging the opened PR is the one remaining gate: release.yml
 # then tags and publishes automatically, no further steps.
 on:
   workflow_dispatch: {}
@@ -70,5 +70,5 @@ jobs:
           git commit -m "chore: bump workspace version -> ${VERSION}"
           git push -u origin "$branch"
           gh pr create --title "chore: bump workspace version -> ${VERSION}" \
-            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`tag-and-release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`publish.yml\` automatically, publishing all 8 crates to crates.io. Review the version and the diff before merging -- there's no further manual gate after this." \
+            --body "Computed by \`prepare-release.yml\` from Conventional Commit subjects since the last tag (see \`scripts/next-version.sh\`). **Merging this releases v${VERSION}**: \`release.yml\` tags this merge commit \`v${VERSION}\` and triggers \`publish.yml\` automatically, publishing all 8 crates to crates.io. Review the version and the diff before merging -- there's no further manual gate after this." \
             --base main --head "$branch"
