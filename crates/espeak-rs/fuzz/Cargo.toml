@@ -1,0 +1,22 @@
+[package]
+name = "espeak-rs-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+dengjen-espeak-rs = { path = ".." }
+
+[[bin]]
+name = "fuzz_text_to_phonemes"
+path = "fuzz_targets/fuzz_text_to_phonemes.rs"
+test = false
+doc = false
+bench = false
+
+[workspace]
