@@ -125,7 +125,7 @@ bootstrap note below), no more manual tagging either.
    release, so push a `v<current-workspace-version>` tag once, manually, to bootstrap it.
 
 2. Review and merge that PR. **This is the release gate** — merging it releases the version in
-   the diff, with nothing further to confirm: [`tag-and-release.yml`](workflows/tag-and-release.yml)
+   the diff, with nothing further to confirm: [`release.yml`](workflows/release.yml)
    tags that merge commit `vX.Y.Z` and directly triggers [`publish.yml`](workflows/publish.yml),
    which publishes all 8 crates to crates.io in dependency-graph order — `dengjen-espeak-rs-sys` +
    `dengjen-piper-core` (no internal deps) → `dengjen-espeak-rs` + `dengjen-stub-adapter` +
