@@ -349,6 +349,7 @@ name = "dengjen-espeak-rs-sys"
 version = "0.2.6"
 dependencies = [
  "bindgen",
+ "cc",
  "cmake",
  "glob",
  "lzma-rs",
