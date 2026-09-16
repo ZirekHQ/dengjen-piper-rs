@@ -1,0 +1,149 @@
+= Examples
+
+`examples/` in the repository has five runnable programs. Each takes a
+Piper `.onnx.json` config path as its first argument and derives the
+matching `.onnx` model path by replacing the `.onnx.json` suffix. See
+xref:usage.adoc[Usage] for what the API calls they use actually do.
+
+== usage.rs -- synthesize and play audio
+
+Loads a model, synthesizes a fixed sentence, and plays it through the
+default audio device with `rodio`:
+
+[source,rust]
+----
+let mut piper = Piper::new(Path::new(&onnx_path), Path::new(&config_path)).unwrap();
+
+let text = "Hello! I'm playing audio from memory directly with piper-rs.";
+let (samples, sample_rate) = piper
+    .create(text, false, speaker_id, None, None, None)
+    .unwrap();
+----
+
+Run it with:
+
+[source,console]
+----
+cargo run --example usage -- path/to/voice.onnx.json [speaker_id]
+----
+
+`speaker_id` is optional and only meaningful for multi-speaker models.
+
+== wav.rs -- synthesize and save to disk
+
+Same synthesis call as `usage.rs`, but converts the `f32` samples to 16-bit
+PCM and writes a minimal WAV file itself (no external WAV-encoding crate):
+
+[source,rust]
+----
+let samples_i16: Vec<i16> = samples
+    .iter()
+    .map(|&s| (s * i16::MAX as f32) as i16)
+    .collect();
+let mut file = std::fs::File::create(&output_path).unwrap();
+write_wav(&mut file, &samples_i16, sample_rate, 1);
+----
+
+Run it with:
+
+[source,console]
+----
+cargo run --example wav -- path/to/voice.onnx.json output.wav [speaker_id]
+----
+
+== enumerate_speakers.rs -- list speakers on a model
+
+Loads a model and prints its speakers via `Piper::voices`:
+
+[source,rust]
+----
+match piper.voices() {
+    None => println!("Single-speaker model."),
+    Some(voices) => {
+        let mut speakers: Vec<_> = voices.iter().collect();
+        speakers.sort_by_key(|(name, _)| name.as_str());
+        for (name, id) in &speakers {
+            println!("ID: {:<3}  Name: {}", id, name);
+        }
+        println!("Found {} speakers.", speakers.len());
+    }
+}
+----
+
+Run it with:
+
+[source,console]
+----
+cargo run --example enumerate_speakers -- path/to/voice.onnx.json
+----
+
+Prints `Single-speaker model.` for models with one implicit speaker, or an
+`ID: <n>  Name: <name>` line per speaker otherwise.
+
+== unload_model.rs -- load, unload, swap
+
+Demonstrates holding a `Piper` behind `Option<Piper>` so it can be unloaded
+on demand -- see xref:model-lifecycle.adoc[Model lifecycle] for the full
+explanation:
+
+[source,rust]
+----
+struct TtsState {
+    piper: Option<Piper>,
+}
+
+impl TtsState {
+    fn load(&mut self, onnx_path: &Path, config_path: &Path) {
+        self.piper = Some(Piper::new(onnx_path, config_path).unwrap());
+    }
+
+    fn unload(&mut self) {
+        self.piper = None;
+    }
+}
+----
+
+Run it with:
+
+[source,console]
+----
+cargo run --example unload_model -- path/to/voice.onnx.json
+----
+
+It loads the model, prints a confirmation, then unloads it and prints a
+second confirmation. No audio is produced -- this example is about the
+lifecycle, not synthesis.
+
+== hexagonal_pipeline.rs -- the in-progress ports-and-adapters design
+
+Exercises `piper-core` and its adapter crates (`ort-adapter`,
+`espeak-rs-adapter`, `fs-voice-repo`, `stub-adapter`) directly, bypassing
+the published `Piper` API entirely. This is the in-progress hexagonal
+architecture described in xref:architecture.adoc[Architecture] -- a
+dev-dependency of the published crate, not (yet) its public surface.
+
+It builds a throwaway single-speaker voice config from real
+`espeak-rs`-produced phonemes, registers it in a `VoiceRegistry`, phonemizes
+the same text with both a dependency-free `StubPhonemizer` and the real
+`EspeakRsPhonemizer`, and -- if given a model path -- runs the full
+`LoadVoice` and `Synthesize` use cases against an actual ONNX model:
+
+[source,rust]
+----
+let outcome = Synthesize {
+    phonemizer: &espeak_phonemizer,
+    engine: &mut engine,
+}
+.execute(&registry, VOICE_ID, TEXT, InferenceOverrides::default())
+.expect("synthesize audio");
+----
+
+Requires the `espeak-rs` feature (on by default). Run it with:
+
+[source,console]
+----
+cargo run --example hexagonal_pipeline -- path/to/voice.onnx
+----
+
+The model path is optional: without it, the example prints the phonemized
+text from both backends and skips inference.
