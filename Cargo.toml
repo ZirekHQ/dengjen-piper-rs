@@ -3,7 +3,7 @@ members = ["crates/espeak-rs", "crates/piper-core", "crates/stub-adapter", "crat
 resolver = "2"
 
 [workspace.package]
-version = "0.2.4"
+version = "0.2.5"
 rust-version = "1.88"
 
 [package]
@@ -16,9 +16,9 @@ description = "Use piper TTS models in Rust"
 repository = "https://github.com/ZirekHQ/dengjen-piper-rs"
 
 [dependencies]
-piper-core = { path = "crates/piper-core", package = "dengjen-piper-core", version = "0.2.4" }
-ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter", version = "0.2.4" }
-espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter", version = "0.2.4", optional = true }
+piper-core = { path = "crates/piper-core", package = "dengjen-piper-core", version = "0.2.5" }
+ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter", version = "0.2.5" }
+espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter", version = "0.2.5", optional = true }
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.89"
 ort = { version = "=2.0.0-rc.12" }
