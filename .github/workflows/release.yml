@@ -19,10 +19,27 @@ on:
 permissions: {}
 
 jobs:
-  tag-and-release:
+  # Single gate for the whole pipeline: the push path needs none, its approval was the
+  # PR merge. Gating tag-and-release rather than the publish file widens coverage to the
+  # tag push -- the old per-file gates covered publishing only.
+  gate:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    # head_commit is absent on workflow_dispatch, hence the event_name check first.
-    if: "github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')"
+    timeout-minutes: 5
+    environment: release
+    steps:
+      - run: echo "approved"
+
+  tag-and-release:
+    needs: gate
+    runs-on: ubuntu-latest
+    # head_commit is absent on workflow_dispatch, hence the event_name check first. Combined
+    # with needs.gate: a push-triggered run skips gate (event_name != workflow_dispatch) and
+    # proceeds if the commit message matches; a dispatched run must clear gate first.
+    if: >-
+      always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
+      (github.event_name == 'workflow_dispatch' ||
+      startsWith(github.event.head_commit.message, 'chore: bump workspace version -> '))
     permissions:
       contents: write
     outputs:
@@ -45,8 +62,8 @@ jobs:
               echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
               exit 1
             fi
-            # publish.yml re-reads Cargo.toml itself rather than taking VERSION as an input,
-            # so a new_tag that disagrees with it would tag one version and publish another.
+            # publish-crates.yml re-reads Cargo.toml itself rather than taking VERSION as an
+            # input, so a new_tag that disagrees with it would tag one version and publish another.
             if [ "$version" != "$cargo_version" ]; then
               echo "::error::new_tag '${NEW_TAG}' (${version}) doesn't match Cargo.toml's workspace version (${cargo_version})" >&2
               exit 1
@@ -91,6 +108,6 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-crates.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       dry_run: ${{ inputs.dry_run == true }}
