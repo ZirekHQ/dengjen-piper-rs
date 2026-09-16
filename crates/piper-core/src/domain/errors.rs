@@ -51,7 +51,7 @@ impl fmt::Display for InferenceError {
         match self {
             Self::ArityMismatch { expected, actual } => write!(
                 f,
-                "model expects {expected} input tensors but voice config implies {actual}"
+                "model expects {actual} input tensors but voice config implies {expected}"
             ),
             Self::RuntimeFailure(msg) => write!(f, "inference failed: {msg}"),
         }
@@ -63,6 +63,7 @@ impl std::error::Error for InferenceError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SynthesizeError {
     VoiceNotFound(String),
+    VoiceLoad(VoiceLoadError),
     Phonemization(PhonemizationError),
     Inference(InferenceError),
 }
@@ -71,6 +72,7 @@ impl fmt::Display for SynthesizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::VoiceNotFound(id) => write!(f, "voice not found: {id}"),
+            Self::VoiceLoad(e) => write!(f, "{e}"),
             Self::Phonemization(e) => write!(f, "{e}"),
             Self::Inference(e) => write!(f, "{e}"),
         }
@@ -128,7 +130,7 @@ mod tests {
         };
         assert_eq!(
             err.to_string(),
-            "model expects 4 input tensors but voice config implies 3"
+            "model expects 3 input tensors but voice config implies 4"
         );
     }
 }

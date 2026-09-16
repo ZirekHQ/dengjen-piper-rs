@@ -7,6 +7,7 @@ use crate::registry::VoiceRegistry;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PhonemizeError {
     VoiceNotFound(String),
+    VoiceLoad(VoiceLoadError),
     Phonemization(PhonemizationError),
 }
 
@@ -14,6 +15,7 @@ impl fmt::Display for PhonemizeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::VoiceNotFound(id) => write!(f, "voice not found: {id}"),
+            Self::VoiceLoad(e) => write!(f, "{e}"),
             Self::Phonemization(e) => write!(f, "{e}"),
         }
     }
@@ -25,7 +27,7 @@ impl From<VoiceLoadError> for PhonemizeError {
     fn from(e: VoiceLoadError) -> Self {
         match e {
             VoiceLoadError::NotFound(id) => Self::VoiceNotFound(id),
-            other => Self::VoiceNotFound(other.to_string()),
+            other => Self::VoiceLoad(other),
         }
     }
 }
@@ -122,6 +124,16 @@ mod tests {
         assert_eq!(
             result,
             Err(PhonemizeError::Phonemization(PhonemizationError::QueueFull))
+        );
+    }
+
+    #[test]
+    fn preserves_non_not_found_voice_load_errors_instead_of_reporting_voice_not_found() {
+        let err: PhonemizeError = VoiceLoadError::MalformedConfig("bad json".to_string()).into();
+
+        assert_eq!(
+            err,
+            PhonemizeError::VoiceLoad(VoiceLoadError::MalformedConfig("bad json".to_string()))
         );
     }
 
