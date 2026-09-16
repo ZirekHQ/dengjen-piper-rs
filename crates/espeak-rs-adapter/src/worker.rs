@@ -118,35 +118,54 @@ mod tests {
     fn a_full_queue_returns_queue_full_without_blocking() {
         let (release_tx, release_rx) = mpsc::channel::<()>();
         let release_rx = std::sync::Mutex::new(release_rx);
+        let (processing_tx, processing_rx) = mpsc::channel::<()>();
         let pool = PhonemizerWorker::with_processor(1, move |_text, _voice| {
+            processing_tx.send(()).ok();
             release_rx.lock().unwrap().recv().ok();
             Ok(vec![])
         });
 
-        std::thread::scope(|scope| {
-            let handle_a = scope.spawn(|| pool.phonemize("a", "en-US"));
-            std::thread::sleep(std::time::Duration::from_millis(50));
+        // Job A is picked up by the worker immediately, freeing the one
+        // buffer slot; wait for it to signal that it is being processed
+        // before relying on that slot being empty.
+        let (a_respond_to, a_response) = mpsc::channel();
+        pool.sender
+            .try_send(Job {
+                text: "a".to_string(),
+                voice: "en-US".to_string(),
+                respond_to: a_respond_to,
+            })
+            .expect("job A should enqueue into the empty buffer");
+        processing_rx
+            .recv()
+            .expect("job A should start processing before job B is enqueued");
 
-            let handle_b = scope.spawn(|| pool.phonemize("b", "en-US"));
-            std::thread::sleep(std::time::Duration::from_millis(50));
+        // Job B now fills the single buffer slot while A is still processing.
+        let (b_respond_to, b_response) = mpsc::channel();
+        pool.sender
+            .try_send(Job {
+                text: "b".to_string(),
+                voice: "en-US".to_string(),
+                respond_to: b_respond_to,
+            })
+            .expect("job B should enqueue into the buffer vacated by job A");
 
-            let result_c = pool.phonemize("c", "en-US");
-            assert!(
-                matches!(result_c, Err(PhonemizationError::QueueFull)),
-                "job C should have hit a full queue: {result_c:?}"
-            );
+        let result_c = pool.phonemize("c", "en-US");
+        assert!(
+            matches!(result_c, Err(PhonemizationError::QueueFull)),
+            "job C should have hit a full queue: {result_c:?}"
+        );
 
-            release_tx.send(()).ok();
-            release_tx.send(()).ok();
+        release_tx.send(()).ok();
+        release_tx.send(()).ok();
 
-            assert!(
-                handle_a.join().unwrap().is_ok(),
-                "job A should have succeeded"
-            );
-            assert!(
-                handle_b.join().unwrap().is_ok(),
-                "job B should have succeeded"
-            );
-        });
+        assert!(
+            a_response.recv().unwrap().is_ok(),
+            "job A should have succeeded"
+        );
+        assert!(
+            b_response.recv().unwrap().is_ok(),
+            "job B should have succeeded"
+        );
     }
 }
