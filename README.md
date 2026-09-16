@@ -10,7 +10,7 @@ Use [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models in Rust.
 
 -  Compatibility with all Piper TTS models
 -  Support for multiple languages
--  High performance with pure Rust implementation
+-  High performance with a Rust API backed by native inference and phonemization engines
 
 ## Install
 

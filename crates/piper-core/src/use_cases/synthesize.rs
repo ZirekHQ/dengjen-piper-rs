@@ -18,7 +18,7 @@ impl From<VoiceLoadError> for SynthesizeError {
     fn from(e: VoiceLoadError) -> Self {
         match e {
             VoiceLoadError::NotFound(id) => Self::VoiceNotFound(id),
-            other => Self::VoiceNotFound(other.to_string()),
+            other => Self::VoiceLoad(other),
         }
     }
 }
@@ -27,6 +27,7 @@ impl From<PhonemizeError> for SynthesizeError {
     fn from(e: PhonemizeError) -> Self {
         match e {
             PhonemizeError::VoiceNotFound(id) => Self::VoiceNotFound(id),
+            PhonemizeError::VoiceLoad(err) => Self::VoiceLoad(err),
             PhonemizeError::Phonemization(err) => Self::Phonemization(err),
         }
     }
@@ -138,6 +139,27 @@ mod tests {
             (EOS, vec![2]),
             ('a', vec![10]),
         ])
+    }
+
+    #[test]
+    fn preserves_non_not_found_voice_load_errors_via_from() {
+        let err: SynthesizeError = VoiceLoadError::ModelLoadFailure("bad onnx".to_string()).into();
+
+        assert_eq!(
+            err,
+            SynthesizeError::VoiceLoad(VoiceLoadError::ModelLoadFailure("bad onnx".to_string()))
+        );
+    }
+
+    #[test]
+    fn preserves_non_not_found_voice_load_errors_from_phonemize_error() {
+        let err: SynthesizeError =
+            PhonemizeError::VoiceLoad(VoiceLoadError::IoFailure("disk error".to_string())).into();
+
+        assert_eq!(
+            err,
+            SynthesizeError::VoiceLoad(VoiceLoadError::IoFailure("disk error".to_string()))
+        );
     }
 
     #[test]
