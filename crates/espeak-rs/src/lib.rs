@@ -200,7 +200,14 @@ pub fn text_to_phonemes(
     ensure_voice(&mut state.current_language, language)?;
 
     let phoneme_mode = match phoneme_separator {
-        Some(c) => ((c as u32) << 8) | espeak_rs_sys::espeakINITIALIZE_PHONEME_IPA,
+        Some(c) if (c as u32) <= 0xFF => {
+            ((c as u32) << 8) | espeak_rs_sys::espeakINITIALIZE_PHONEME_IPA
+        }
+        Some(c) => {
+            return Err(ESpeakError::Failure(format!(
+                "Phoneme separator `{c}` must be a single-byte character"
+            )));
+        }
         None => espeak_rs_sys::espeakINITIALIZE_PHONEME_IPA,
     } as i32;
 
@@ -473,6 +480,15 @@ mod tests {
         let phonemes = text_to_phonemes("test", "en-US", Some('_'))?.join("");
         assert_eq!(phonemes, "t_ˈɛ_s_t.");
         Ok(())
+    }
+
+    #[test]
+    fn test_it_rejects_a_phoneme_separator_outside_the_single_byte_range() {
+        let result = text_to_phonemes("test", "en-US", Some('€'));
+        assert!(
+            matches!(result, Err(ESpeakError::Failure(_))),
+            "expected a Failure error, got {result:?}"
+        );
     }
 
     #[test]
