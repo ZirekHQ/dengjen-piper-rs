@@ -1,0 +1,81 @@
+= Model lifecycle
+
+This page covers loading, unloading, and swapping `Piper` instances. For
+what to do with a loaded `Piper`, see xref:usage.adoc[Usage].
+
+== Loading
+
+`Piper::new` loads a model and its config from disk:
+
+[source,rust]
+----
+let piper = Piper::new(Path::new(&onnx_path), Path::new(&config_path))?;
+----
+
+This opens and parses the `.onnx.json` config into a `ModelConfig`, then
+builds an ONNX Runtime session from the `.onnx` model file. Both steps can
+fail; see xref:usage.adoc[Usage] for the resulting `PiperError` variants.
+
+`Piper::from_session` is the alternative entry point for callers who've
+already built their own `ort::Session` (e.g. with non-default execution
+providers) and just need it wrapped:
+
+[source,rust]
+----
+let piper = Piper::from_session(session, config);
+----
+
+== Unloading
+
+`Piper` has no `unload()` method, because it doesn't need one: dropping a
+`Piper` value releases its ONNX Runtime session, and the native memory
+backing it, immediately. There's nothing to explicitly tear down.
+
+To unload a model *on demand* -- e.g. in a long-running app where a model
+shouldn't stay resident forever -- hold it behind `Option<Piper>` and assign
+`None` to unload it:
+
+[source,rust]
+----
+struct TtsState {
+    piper: Option<Piper>,
+}
+
+impl TtsState {
+    fn load(&mut self, onnx_path: &Path, config_path: &Path) {
+        self.piper = Some(Piper::new(onnx_path, config_path).unwrap());
+    }
+
+    fn unload(&mut self) {
+        self.piper = None;
+    }
+}
+----
+
+Assigning `None` drops the previous `Some(Piper)` in place, which releases
+that model's session and memory before the assignment returns. See
+`examples/unload_model.rs`, walked through in
+xref:examples.adoc[Examples], for the full program.
+
+== Swapping voices
+
+Swapping to a different voice is the same operation as unloading, just
+without the intermediate `None`: assigning a new `Some(Piper)` to the
+`Option<Piper>` drops the old value first, releasing its session, then
+stores the new one:
+
+[source,rust]
+----
+impl TtsState {
+    fn swap(&mut self, onnx_path: &Path, config_path: &Path) {
+        self.piper = Some(Piper::new(onnx_path, config_path).unwrap());
+    }
+}
+----
+
+Because `load` and `swap` are the same assignment, one method covers both:
+calling `load` again on an already-loaded `TtsState` swaps the voice. Note
+the order of evaluation: `Piper::new` for the *new* model runs first, while
+`self.piper` still holds the *old* one, so both sessions are briefly
+resident together; only once the new `Piper` is constructed does the
+assignment drop the old value and store the new one.

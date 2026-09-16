@@ -1,0 +1,129 @@
+= Usage
+
+This page walks through `dengjen-piper-rs`'s public API: loading a model and
+synthesizing audio from text. For the full model lifecycle (load, unload,
+swap voices), see xref:model-lifecycle.adoc[Model lifecycle]. For runnable
+programs, see xref:examples.adoc[Examples].
+
+== Loading a model
+
+`Piper::new` takes the paths to a Piper `.onnx` model and its `.onnx.json`
+config, and returns a `PiperResult<Piper>`:
+
+[source,rust]
+----
+use dengjen_piper_rs::Piper;
+use std::path::Path;
+
+let mut piper = Piper::new(
+    Path::new("path/to/voice.onnx"),
+    Path::new("path/to/voice.onnx.json"),
+)?;
+----
+
+Loading fails with `PiperError::FailedToLoadResource` if the config can't be
+opened or parsed, or if the ONNX Runtime session can't be created from the
+model file.
+
+If you've already built an `ort::Session` yourself -- e.g. with custom
+execution providers -- use `Piper::from_session` instead, passing the parsed
+`ModelConfig`:
+
+[source,rust]
+----
+use dengjen_piper_rs::{ModelConfig, Piper};
+
+let piper = Piper::from_session(session, config);
+----
+
+`from_session` doesn't return a `Result`: it can't fail the way `new` can,
+since the session is already built.
+
+== Synthesizing speech
+
+`Piper::create` turns text (or phonemes) into raw audio samples:
+
+[source,rust]
+----
+let (samples, sample_rate) = piper.create(
+    "Hello! I'm playing audio from memory directly with piper-rs.",
+    false,        // is_phonemes
+    None,         // speaker_id
+    None,         // length_scale
+    None,         // noise_scale
+    None,         // noise_w
+)?;
+----
+
+It returns `(Vec<f32>, u32)`: mono samples in `[-1.0, 1.0]`, and the sample
+rate declared in the model's config (`audio.sample_rate`).
+
+Parameters:
+
+* `text` -- the input string. Interpreted as plain text or as raw phonemes,
+  depending on `is_phonemes`.
+* `is_phonemes` -- when `true`, `text` is fed to the model's phoneme encoder
+  directly, skipping the phonemizer backend entirely. Use this if you've
+  already produced phonemes some other way.
+* `speaker_id` -- selects a speaker on multi-speaker models. Ignored (single
+  implicit speaker) on single-speaker models. See
+  <<Multi-speaker voices>> below for how to find valid IDs.
+* `length_scale`, `noise_scale`, `noise_w` -- override the model's inference
+  defaults from its `.onnx.json` config. `None` keeps the config's default
+  for that parameter.
+
+`create` fails with `PiperError::PhonemizationError` if the phonemizer
+backend can't process the text, or `PiperError::InferenceError` if the ONNX
+Runtime session fails.
+
+=== Playing audio
+
+`examples/usage.rs` plays the returned samples directly with `rodio`:
+
+[source,rust]
+----
+let device = rodio::DeviceSinkBuilder::open_default_sink().unwrap();
+let player = rodio::Player::connect_new(device.mixer());
+let channels = NonZero::new(1).unwrap();
+let sample_rate = NonZero::new(sample_rate).unwrap();
+player.append(SamplesBuffer::new(channels, sample_rate, samples));
+player.sleep_until_end();
+----
+
+=== Saving audio
+
+`examples/wav.rs` converts the `f32` samples to 16-bit PCM and writes a WAV
+file -- see xref:examples.adoc[Examples] for the full listing.
+
+== Multi-speaker voices
+
+`Piper::voices` reports whether the loaded model is multi-speaker:
+
+[source,rust]
+----
+match piper.voices() {
+    None => println!("Single-speaker model."),
+    Some(voices) => {
+        for (name, id) in voices {
+            println!("ID: {id}  Name: {name}");
+        }
+    }
+}
+----
+
+It returns `None` for single-speaker models, or `Some(&HashMap<String, i64>)`
+mapping speaker name to speaker ID for multi-speaker ones. Pass one of those
+IDs as `create`'s `speaker_id` argument to select a speaker.
+
+== Choosing a phonemizer backend
+
+`dengjen-piper-rs` needs exactly one of two mutually exclusive Cargo
+features enabled to turn text into phonemes:
+
+* `espeak-rs` (default) -- pure-Rust eSpeak NG bindings via
+  `dengjen-espeak-rs-adapter`.
+* `espeak-ng` -- the `espeak-ng` crate. When this feature is active, set the
+  `PIPER_ESPEAKNG_DATA_DIRECTORY` env var to the directory containing
+  `espeak-ng-data` if it isn't found automatically.
+
+Enabling both, or neither, fails to compile.

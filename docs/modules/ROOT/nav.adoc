@@ -1,4 +1,7 @@
 * xref:index.adoc[Overview]
 * xref:installation.adoc[Installation]
 * xref:building.adoc[Building]
+* xref:usage.adoc[Usage]
+* xref:examples.adoc[Examples]
+* xref:model-lifecycle.adoc[Model lifecycle]
 * xref:architecture.adoc[Architecture]
