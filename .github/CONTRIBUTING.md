@@ -126,16 +126,22 @@ bootstrap note below), no more manual tagging either.
 
 2. Review and merge that PR. **This is the release gate** — merging it releases the version in
    the diff, with nothing further to confirm: [`release.yml`](workflows/release.yml)
-   tags that merge commit `vX.Y.Z` and directly triggers [`publish.yml`](workflows/publish.yml),
+   tags that merge commit `vX.Y.Z` and directly triggers [`publish-crates.yml`](workflows/publish-crates.yml),
    which publishes all 8 crates to crates.io in dependency-graph order — `dengjen-espeak-rs-sys` +
    `dengjen-piper-core` (no internal deps) → `dengjen-espeak-rs` + `dengjen-stub-adapter` +
    `dengjen-fs-voice-repo` + `dengjen-ort-adapter` (each needs one tier-1 crate) →
    `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2 crates) — waiting for each tier
    to land on the crates.io index before the next, dependent tier publishes.
 
-If `publish.yml` fails partway through, re-run it (Actions tab, or `gh workflow run publish.yml`)
-— no new tag needed. Every publish step is idempotent (skips a crate crates.io already has), so
-re-running from scratch after a partial failure is always safe.
+If publishing fails partway through, retry via `release.yml` — no new tag needed either way,
+since every publish step is idempotent (skips a crate crates.io already has):
+- Same version, still current on `main`: use GitHub's "Re-run failed jobs" on the original
+  `release.yml` run (Actions tab). It re-runs just the failed job(s) against that run's own
+  commit, no new dispatch needed.
+- Stale version (a newer version has since bumped past it on `main`): dispatch
+  `gh workflow run release.yml --ref v<old-version>` against the old tag directly. It resolves
+  the version from that tag's own `Cargo.toml`, and the tag-push step's existing-tag branch
+  reuses it rather than erroring, so it doesn't need `main` to still be at that version.
 
 Note: Please don't create PR from your main branch. only from new feature branch!
 
