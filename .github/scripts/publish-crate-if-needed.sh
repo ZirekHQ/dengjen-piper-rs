@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lets publish.yml retry a partial failure (one crate published, the next 403s) by
+# Lets release.yml's publish job retry a partial failure (one crate published, the next 403s) by
 # re-running from scratch without cargo publish hard-failing on an already-published version.
 
 # crates.io 403s any request without a descriptive User-Agent (bare "curl/x.y.z" doesn't
