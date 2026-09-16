@@ -1,15 +1,9 @@
 name: Publish to crates.io
 
-# Called as a job of release.yml's flow (see #105 for why the merge-triggered path has no
-# approve gate). Not tag-triggered itself, so a stray tag push can't fire a real publish.
+# Called as a job of release.yml's flow; release.yml's own gate job (single-trigger,
+# single-gate) covers this file too, so it has none of its own. Not tag-triggered
+# itself, so a stray tag push can't fire a real publish.
 on:
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry Run: publish nothing"
-        required: false
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       dry_run:
@@ -21,20 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  # Only gates workflow_dispatch (release.yml's merge-the-PR decision point per #105 covers
-  # workflow_call). Defense-in-depth, not necessarily closing an open hole -- see the JWT
-  # scoping note below on why a direct dispatch here may already fail OIDC auth on its own.
-  gate:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: release
-    steps:
-      - run: echo "approved"
-
   publish:
-    needs: gate
-    if: always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,7 +37,7 @@ jobs:
 
       # Requires Trusted Publishing configured on crates.io for all 8 crates below. crates.io
       # matches the JWT's top-level triggering workflow, not this reusable file -- configure
-      # release.yml there, not publish.yml, even though id-token: write lives here.
+      # release.yml there, not this file, even though id-token: write lives here.
 
       # github.workflow_ref stays bound to the top-level caller even inside a called reusable
       # workflow, so it mirrors the OIDC workflow_ref claim crates.io checks (see #107). Catches
