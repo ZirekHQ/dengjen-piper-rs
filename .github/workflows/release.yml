@@ -19,10 +19,9 @@ on:
 permissions: {}
 
 jobs:
-  # Single gate for the whole pipeline (single-trigger, single-gate): only fires on
-  # workflow_dispatch, since a push-triggered run's approval already happened via the
-  # PR merge. Every downstream job depends on tag-and-release, so gating it here covers
-  # the tag push too, not just publishing -- a wider net than the old per-file gates.
+  # Single gate for the whole pipeline: the push path needs none, its approval was the
+  # PR merge. Gating tag-and-release rather than the publish file widens coverage to the
+  # tag push -- the old per-file gates covered publishing only.
   gate:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -40,7 +39,7 @@ jobs:
     if: >-
       always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
       (github.event_name == 'workflow_dispatch' ||
-       startsWith(github.event.head_commit.message, 'chore: bump workspace version -> '))
+      startsWith(github.event.head_commit.message, 'chore: bump workspace version -> '))
     permissions:
       contents: write
     outputs:
