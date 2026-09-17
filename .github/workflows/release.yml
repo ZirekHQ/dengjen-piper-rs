@@ -1,17 +1,18 @@
 name: Release
 
+# No trigger or gate of its own -- prepare-release.yml is the single entry point (its `prepare`
+# job for the PR-merge path, `gate`+`release-now` for the override path). Reacts to that PR's
+# merge landing on main (push) or the override path's direct call (workflow_call).
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_call:
     inputs:
       new_tag:
-        description: "Override the vX.Y.Z tag"
         required: false
         type: string
       dry_run:
-        description: "Dry Run: publish nothing"
         required: false
         type: boolean
         default: false
@@ -19,27 +20,13 @@ on:
 permissions: {}
 
 jobs:
-  # Single gate for the whole pipeline: the push path needs none, its approval was the
-  # PR merge. Gating tag-and-release rather than the publish file widens coverage to the
-  # tag push -- the old per-file gates covered publishing only.
-  gate:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: release
-    steps:
-      - run: echo "approved"
-
   tag-and-release:
-    needs: gate
     runs-on: ubuntu-latest
-    # head_commit is absent on workflow_dispatch, hence the event_name check first. Combined
-    # with needs.gate: a push-triggered run skips gate (event_name != workflow_dispatch) and
-    # proceeds if the commit message matches; a dispatched run must clear gate first.
+    # github.event_name inherits the top-level caller's event through nested workflow_call hops,
+    # not literally 'workflow_call' -- inputs.new_tag != '' detects the override path directly.
     if: >-
-      always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') &&
-      (github.event_name == 'workflow_dispatch' ||
-      startsWith(github.event.head_commit.message, 'chore: bump workspace version -> '))
+      inputs.new_tag != '' ||
+      startsWith(github.event.head_commit.message, 'chore: bump workspace version -> ')
     permissions:
       contents: write
     outputs:
@@ -62,8 +49,6 @@ jobs:
               echo "::error::new_tag '${NEW_TAG}' doesn't look like a vX.Y.Z tag" >&2
               exit 1
             fi
-            # publish-crates.yml re-reads Cargo.toml itself rather than taking VERSION as an
-            # input, so a new_tag that disagrees with it would tag one version and publish another.
             if [ "$version" != "$cargo_version" ]; then
               echo "::error::new_tag '${NEW_TAG}' (${version}) doesn't match Cargo.toml's workspace version (${cargo_version})" >&2
               exit 1
@@ -74,16 +59,14 @@ jobs:
           echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Push release tag
-        if: inputs.dry_run != true
         env:
           VERSION: ${{ steps.version.outputs.version }}
-        # Checked against origin, not the local clone -- checkout's shallow fetch wouldn't reliably reflect a tag pushed by an earlier attempt.
+        # ls-remote returns an annotated tag's tag-object SHA, not the commit -- peel via ^{}
+        # first, falling back to the direct ref for this pipeline's normal lightweight tags.
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          # ls-remote returns an annotated tag's tag-object SHA, not the commit -- peel via ^{}
-          # first, falling back to the direct ref for this pipeline's normal lightweight tags.
           existing="$(git ls-remote origin "refs/tags/v${VERSION}^{}" | cut -f1)"
           if [ -z "$existing" ]; then
             existing="$(git ls-remote origin "refs/tags/v${VERSION}" | cut -f1)"
@@ -105,9 +88,6 @@ jobs:
   crates:
     name: crates.io
     needs: tag-and-release
-    # Default `if: success()` checks the whole needs chain: gate's skip (expected on a push
-    # trigger) otherwise propagates down and skips this job too, even though tag-and-release
-    # itself succeeded -- this is what silently dropped the v0.2.5 crates.io publish.
     if: always() && needs.tag-and-release.result == 'success'
     permissions:
       contents: read
