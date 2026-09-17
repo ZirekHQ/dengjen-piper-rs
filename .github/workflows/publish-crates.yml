@@ -39,18 +39,19 @@ jobs:
       # matches the JWT's top-level triggering workflow, not this reusable file -- configure
       # release.yml there, not this file, even though id-token: write lives here.
 
-      # github.workflow_ref stays bound to the top-level caller even inside a called reusable
-      # workflow, so it mirrors the OIDC workflow_ref claim crates.io checks (see #107). Catches
-      # a future release.yml rename here instead of via crates-io-auth-action's opaque 400.
+      # github.workflow_ref stays bound to the top-level caller even through nested workflow_call
+      # hops -- release.yml on the push path, prepare-release.yml on the override path. crates.io's
+      # Trusted Publishing must register BOTH, or the override path 400s.
       - name: verify OIDC workflow_ref matches crates.io Trusted Publishing target
         env:
           WORKFLOW_REF: ${{ github.workflow_ref }}
         run: |
           set -euo pipefail
-          expected="ZirekHQ/dengjen-piper-rs/.github/workflows/release.yml"
+          expected_release="ZirekHQ/dengjen-piper-rs/.github/workflows/release.yml"
+          expected_prepare="ZirekHQ/dengjen-piper-rs/.github/workflows/prepare-release.yml"
           actual="${WORKFLOW_REF%@*}"
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::OIDC workflow_ref is '${actual}', expected '${expected}'. crates.io Trusted Publishing for all 8 crates targets '${expected##*/}' (see #107) -- if this workflow was renamed, update crates.io's config and this expected value together." >&2
+          if [ "$actual" != "$expected_release" ] && [ "$actual" != "$expected_prepare" ]; then
+            echo "::error::OIDC workflow_ref is '${actual}', expected '${expected_release}' or '${expected_prepare}'. crates.io Trusted Publishing for all 8 crates must target both -- if either workflow was renamed, update crates.io's config and this check together." >&2
             exit 1
           fi
       - name: Authenticate with crates.io
