@@ -114,11 +114,11 @@ member, so it's hand-synced instead, by the same script that does everything els
 no more manually bumping individual `Cargo.toml` files, and after the first release (see the
 bootstrap note below), no more manual tagging either.
 
-1. Run the **Prepare release** workflow (`workflow_dispatch`, from the Actions tab). It computes
-   the next semver version from Conventional Commit subjects merged since the last `vX.Y.Z` tag
-   (`fix:`/etc → patch, `feat:` → minor, `!`/`BREAKING CHANGE:` → major, only docs/chore/style/
-   refactor/test since the last tag means no release) and opens a PR bumping every hand-synced
-   copy of it (`scripts/next-version.sh` / `scripts/bump-version.sh`).
+1. Run the **Prepare release** workflow (`workflow_dispatch`, from the Actions tab), leaving
+   `new_tag` blank. It computes the next semver version from Conventional Commit subjects merged
+   since the last `vX.Y.Z` tag (`fix:`/etc → patch, `feat:` → minor, `!`/`BREAKING CHANGE:` →
+   major, only docs/chore/style/refactor/test since the last tag means no release) and opens a PR
+   bumping every hand-synced copy of it (`scripts/next-version.sh` / `scripts/bump-version.sh`).
 
    First run only: `next-version.sh` needs a prior `vX.Y.Z` tag to diff Conventional Commits
    from, and fails loudly rather than guessing when none exists — this repo has never tagged a
@@ -132,16 +132,29 @@ bootstrap note below), no more manual tagging either.
    `dengjen-fs-voice-repo` + `dengjen-ort-adapter` (each needs one tier-1 crate) →
    `dengjen-espeak-rs-adapter` + `dengjen-piper-rs` (need tier-2 crates) — waiting for each tier
    to land on the crates.io index before the next, dependent tier publishes.
+3. **Direct-release override**: setting `new_tag` (and optionally `dry_run`) on **Prepare
+   release** skips `next-version.sh`, `bump-version.sh`, and the PR entirely, and hands off
+   straight to `release.yml` for the tag/publish given in `new_tag`. Because this bypasses the PR
+   review that's normally the release gate, it requires approval on the `release` environment
+   (Maintainers team) before it runs. **Self-approval is currently still possible** — the
+   environment's `prevent_self_review` setting hasn't been flipped to `true` yet (repo Settings,
+   tracked separately, not part of any workflow file); until it is, "requires approval" means a
+   click, not necessarily a second person.
 
-If publishing fails partway through, retry via `release.yml` — no new tag needed either way,
-since every publish step is idempotent (skips a crate crates.io already has):
+If publishing fails partway through, retry — no new tag needed either way, since every publish
+step is idempotent (skips a crate crates.io already has):
 - Same version, still current on `main`: use GitHub's "Re-run failed jobs" on the original
   `release.yml` run (Actions tab). It re-runs just the failed job(s) against that run's own
   commit, no new dispatch needed.
-- Stale version (a newer version has since bumped past it on `main`): dispatch
-  `gh workflow run release.yml --ref v<old-version>` against the old tag directly. It resolves
-  the version from that tag's own `Cargo.toml`, and the tag-push step's existing-tag branch
-  reuses it rather than erroring, so it doesn't need `main` to still be at that version.
+- Stale version (a newer version has since bumped past it on `main`): run **Prepare release**
+  again, this time from the old tag (`--ref v<old-version>` on the CLI, or pick it from the
+  branch/tag dropdown in the Actions tab) with `new_tag: v<old-version>` set. This is the
+  direct-release override path above — it resolves the version from that tag's own `Cargo.toml`
+  rather than computing a new one, and the tag-push step's existing-tag branch reuses the tag
+  rather than erroring, so it doesn't need `main` to still be at that version. Only works for tags
+  cut *after* this override path shipped — dispatching against an older tag runs *that tag's* copy
+  of these workflow files, which won't have the `new_tag` input or the `workflow_call` trigger this
+  retry path depends on.
 
 Note: Please don't create PR from your main branch. only from new feature branch!
 
