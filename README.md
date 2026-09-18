@@ -46,4 +46,4 @@ If this repository saves you time and effort, please consider supporting it!
 
 - ⭐ [Star on GitHub](https://github.com/ZirekHQ/dengjen-piper-rs)
 - 🐦 [Share on Twitter](https://twitter.com/intent/tweet?text=dengjen-piper-rs%20-%20Piper%20TTS%20models%20in%20Rust&url=https%3A%2F%2Fgithub.com%2FZirekHQ%2Fdengjen-piper-rs)
-- 💖 [More ways to support](https://github.com/ZirekHQ) — Open Collective coming soon
+- 💖 [Support on Open Collective](https://opencollective.com/zirek)
