@@ -11,6 +11,12 @@
       "matchManagers": ["github-actions"],
       "matchDepNames": ["rust"],
       "enabled": false
+    },
+    {
+      "description": "bindgen 0.73.x fails to compile: it resolves syn 3 while prettyplease 0.2 (pulled by wit-bindgen-rust-macro) needs syn 2. Hold until a release fixes it.",
+      "matchManagers": ["cargo"],
+      "matchDepNames": ["bindgen"],
+      "allowedVersions": "<0.73.0"
     }
   ]
 }
