@@ -24,7 +24,7 @@ jobs:
       - name: install libclang, espeak-ng, and alsa
         # libasound2-dev: rodio (dev-dep, used by tests/examples) needs it, not the library itself.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -68,7 +68,7 @@ jobs:
       - name: install libclang, espeak-ng, and alsa
         # Same libasound2-dev rationale as the test job above.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -94,7 +94,7 @@ jobs:
         run: git config --global protocol.file.allow always
       - name: install libclang (for bindgen)
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -127,7 +127,7 @@ jobs:
         run: git config --global protocol.file.allow always
       - name: install libclang (for bindgen) and the arm64 cross toolchain
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev crossbuild-essential-arm64 pkg-config libssl-dev
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
@@ -151,7 +151,7 @@ jobs:
         run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           persist-credentials: false
