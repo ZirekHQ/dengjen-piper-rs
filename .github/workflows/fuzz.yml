@@ -17,7 +17,7 @@ jobs:
         run: git config --global protocol.file.allow always
       - name: install build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
-      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
           persist-credentials: false
@@ -27,7 +27,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@b6b84cf49ebfe0176417bdce007c624f0db37f20 # v2.86.2
+      - uses: taiki-e/install-action@3f74d7c16a4242f1c95561e98edc25d36adb4375 # v2.87.12
         with:
           tool: cargo-fuzz
       - name: restore fuzz corpus
