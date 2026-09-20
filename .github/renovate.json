@@ -1,7 +1,16 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>austek/renovate-config"],
+  "prHourlyLimit": 0,
   "git-submodules": {
     "enabled": true
-  }
+  },
+  "packageRules": [
+    {
+      "description": "rust-version in Cargo.toml is a deliberately low floor for consumers; CI.yml's msrv job must stay on that exact toolchain.",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["rust"],
+      "enabled": false
+    }
+  ]
 }
