@@ -15,7 +15,7 @@ include = [
 ]
 
 [build-dependencies]
-bindgen = "0.72.1"
+bindgen = "0.73.0"
 cc = "1"
 cmake = "0.1"
 glob = "0.3.1"
@@ -23,7 +23,7 @@ lzma-rs = "0.3.0"
 tar = "0.4.46"
 
 [dev-dependencies]
-bindgen = "0.72.1"
+bindgen = "0.73.0"
 cc = "1"
 cmake = "0.1"
 glob = "0.3.1"
