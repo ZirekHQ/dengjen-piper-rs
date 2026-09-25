@@ -47,7 +47,7 @@ jobs:
             | clippy-sarif | tee clippy-results.sarif | sarif-fmt
       - name: upload clippy SARIF
         if: always()
-        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: clippy-results.sarif
       - name: cargo clippy (espeak-ng backend, espeak-rs disabled)
@@ -121,7 +121,7 @@ jobs:
           toolchain: stable
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-      - uses: taiki-e/install-action@76c2e6406e52637deed7160d77bded76bd83e06e # v2.87.14
+      - uses: taiki-e/install-action@4076c08d76dba979c11a7285295b0716c1d67908 # v2.87.15
         with:
           tool: cargo-llvm-cov
       - name: cargo llvm-cov (dengjen-piper-rs, default features, espeak-rs backend)
