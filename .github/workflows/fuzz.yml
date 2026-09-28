@@ -41,7 +41,7 @@ jobs:
         working-directory: crates/espeak-rs
         env:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/crates/espeak-rs/fuzz/lsan_suppressions.txt
-        run: cargo fuzz run -s address fuzz_text_to_phonemes -- -max_total_time=300
+        run: cargo fuzz run -s address --target x86_64-unknown-linux-gnu fuzz_text_to_phonemes -- -max_total_time=300
       - name: upload crash artifacts
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
