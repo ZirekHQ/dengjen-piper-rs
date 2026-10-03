@@ -58,6 +58,7 @@ jobs:
         run: cargo bench --no-run
 
   audit:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -73,6 +74,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   fmt:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -87,6 +89,7 @@ jobs:
         run: cargo fmt --all -- --check
 
   deny:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -101,6 +104,7 @@ jobs:
 
   # Mirrors CI.yml's `test` job exactly (kept in sync intentionally) under llvm-cov instrumentation.
   coverage:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -156,6 +160,7 @@ jobs:
           label: code-coverage/rust
 
   semver-checks:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

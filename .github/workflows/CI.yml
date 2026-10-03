@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   test:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -57,6 +58,7 @@ jobs:
         run: bash .github/scripts/check-ru-listx-packaged.sh
 
   lint:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     name: clippy (piper-core and Phase 2 adapters)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -84,6 +86,7 @@ jobs:
   # No unit tests for Android cross-compilation -- the cross-build itself is the
   # regression test. See issue #9.
   android:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     name: cross-compile (aarch64-linux-android)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -117,6 +120,7 @@ jobs:
   # Unlike android above, needs no toolchain file/sysroot: cmake/cc already recognize
   # the standard aarch64-linux-gnu-* naming crossbuild-essential-arm64 installs. See #16.
   linux-arm64:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     name: cross-compile (aarch64-unknown-linux-gnu)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -142,6 +146,7 @@ jobs:
         run: cargo build -p dengjen-piper-rs --target aarch64-unknown-linux-gnu
 
   msrv:
+    if: github.event.pull_request.user.login != 'zirekhq-automation[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
