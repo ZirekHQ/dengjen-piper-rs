@@ -1,0 +1,13 @@
+# Runs every CI lane locally: docker compose run --rm lanes
+services:
+  lanes:
+    build:
+      context: .
+      dockerfile: Dockerfile.lanes
+    image: piper-lanes
+    volumes:
+      - .:/workspace
+      - target:/target
+
+volumes:
+  target:

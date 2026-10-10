@@ -1,0 +1,21 @@
+# Toolchain image for running every CI lane locally. The repo is bind-mounted, not copied:
+#   docker compose run --rm lanes
+FROM rust:1.93-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      pkg-config libssl-dev clang libclang-dev llvm llvm-dev \
+      espeak-ng libasound2-dev cmake git \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN rustup component add rustfmt clippy \
+    && cargo install --locked cargo-deny cargo-audit
+
+# Named volume keeps container builds out of the host's target/ directory.
+ENV CARGO_TARGET_DIR=/target \
+    WORKSPACE=/workspace
+
+COPY scripts/run-lanes.sh /usr/local/bin/run-lanes
+RUN chmod +x /usr/local/bin/run-lanes
+
+WORKDIR /workspace
+ENTRYPOINT ["run-lanes"]
