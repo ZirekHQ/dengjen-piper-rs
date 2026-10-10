@@ -1,6 +1,7 @@
 # Toolchain image for running every CI lane locally. The repo is bind-mounted, not copied:
 #   docker compose run --rm lanes
-FROM rust:1.98-bookworm
+# trixie: the prebuilt ONNX Runtime from ort-sys needs glibc >= 2.38 (__isoc23_strtol).
+FROM rust:1.98-trixie
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       pkg-config libssl-dev clang libclang-dev llvm llvm-dev \

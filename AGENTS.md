@@ -34,6 +34,7 @@ cargo test -p dengjen-espeak-rs-adapter -- --test-threads=1
 - espeak-ng keeps global voice-table state. Tests that touch it MUST run with `--test-threads=1`; the parallel runner segfaults.
 - Features `espeak-rs` (default) and `espeak-ng` are mutually exclusive; test each separately.
 - Run every CI lane in a container: `docker compose run --rm lanes` (`Dockerfile.lanes`, `scripts/run-lanes.sh`).
+- The prebuilt ONNX Runtime needs AVX2. On older CPUs `scripts/run-lanes.sh` prints `SKIP` for the `ort-adapter` and root test lanes (they would die with `SIGILL`); CI covers them.
 
 ## Lint
 

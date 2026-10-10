@@ -1,7 +1,7 @@
 use std::env;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::mem;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -44,13 +44,38 @@ static ESPEAK_LOCK: Mutex<EspeakState> = Mutex::new(EspeakState {
     current_language: None,
 });
 
+/// Cooperative bound, checked between espeak calls; a single call that blocks inside
+/// espeak-ng is not interrupted.
 const PHONEMIZATION_TIMEOUT: Duration = Duration::from_secs(5);
+
+fn data_dir_error(reason: &str) -> ESpeakError {
+    ESpeakError::Failure(format!(
+        "espeak-ng data directory {reason}; check `{PIPER_ESPEAKNG_DATA_DIRECTORY}`"
+    ))
+}
+
+#[cfg(unix)]
+fn path_bytes(path: &Path) -> Option<Vec<u8>> {
+    use std::os::unix::ffi::OsStrExt;
+    Some(path.as_os_str().as_bytes().to_vec())
+}
+
+#[cfg(not(unix))]
+fn path_bytes(path: &Path) -> Option<Vec<u8>> {
+    path.to_str().map(|s| s.as_bytes().to_vec())
+}
+
+fn data_dir_cstring(dir: Option<&Path>) -> ESpeakResult<Option<CString>> {
+    dir.map(|p| {
+        let bytes = path_bytes(p).ok_or_else(|| data_dir_error("is not valid UTF-8"))?;
+        CString::new(bytes).map_err(|_| data_dir_error("contains a null byte"))
+    })
+    .transpose()
+}
 
 fn init_espeak() -> ESpeakResult<()> {
     let data_dir = locate_espeak_data();
-    let path_cstr = data_dir
-        .as_ref()
-        .and_then(|p| CString::new(p.to_string_lossy().as_ref()).ok());
+    let path_cstr = data_dir_cstring(data_dir.as_deref())?;
     let path_ptr = path_cstr.as_ref().map_or(ptr::null(), |c| c.as_ptr());
 
     let sample_rate = unsafe {
@@ -391,6 +416,42 @@ mod ensure_voice_tests {
         let result = ensure_voice(&mut current, "bad\0lang");
         assert!(result.is_err());
         assert_eq!(current, None);
+    }
+}
+
+#[cfg(test)]
+mod data_dir_cstring_tests {
+    use super::*;
+
+    #[test]
+    fn none_maps_to_no_override() {
+        assert!(matches!(data_dir_cstring(None), Ok(None)));
+    }
+
+    #[test]
+    fn plain_path_round_trips() {
+        let c = data_dir_cstring(Some(std::path::Path::new("/opt/espeak")))
+            .expect("plain path converts")
+            .expect("path present");
+        assert_eq!(c.to_str(), Ok("/opt/espeak"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_path_bytes_reach_espeak_unchanged() {
+        use std::os::unix::ffi::OsStrExt;
+        let path = Path::new(std::ffi::OsStr::from_bytes(b"/opt/es\xffpeak"));
+        let c = data_dir_cstring(Some(path))
+            .expect("non-UTF-8 path converts")
+            .expect("path present");
+        assert_eq!(c.as_bytes(), b"/opt/es\xffpeak");
+    }
+
+    #[test]
+    fn interior_nul_is_an_error_naming_the_override_variable() {
+        let err = data_dir_cstring(Some(std::path::Path::new("/opt/es\0peak")))
+            .expect_err("NUL byte must not be silently dropped");
+        assert!(err.to_string().contains(PIPER_ESPEAKNG_DATA_DIRECTORY));
     }
 }
 
