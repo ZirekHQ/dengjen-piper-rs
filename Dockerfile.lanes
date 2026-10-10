@@ -1,6 +1,6 @@
 # Toolchain image for running every CI lane locally. The repo is bind-mounted, not copied:
 #   docker compose run --rm lanes
-FROM rust:1.93-bookworm
+FROM rust:1.98-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       pkg-config libssl-dev clang libclang-dev llvm llvm-dev \
