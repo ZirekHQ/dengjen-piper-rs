@@ -13,30 +13,38 @@ struct InputTensors {
     speaker_id: Option<Tensor<i64>>,
 }
 
-fn build_input_tensors(ids: &PhonemeIdSequence, params: &ResolvedInferenceParams) -> InputTensors {
+fn tensor_error(name: &str, e: impl std::fmt::Display) -> InferenceError {
+    InferenceError::RuntimeFailure(format!("failed to build {name} tensor: {e}"))
+}
+
+fn build_input_tensors(
+    ids: &PhonemeIdSequence,
+    params: &ResolvedInferenceParams,
+) -> Result<InputTensors, InferenceError> {
     let input_len = ids.0.len();
 
     let input = Tensor::<i64>::from_array(([1, input_len], ids.0.clone()))
-        .expect("input tensor shape matches the vec's length by construction");
+        .map_err(|e| tensor_error("input", e))?;
     let input_lengths = Tensor::<i64>::from_array(([1], vec![input_len as i64]))
-        .expect("input_lengths tensor shape matches the vec's length by construction");
+        .map_err(|e| tensor_error("input_lengths", e))?;
     let scales = Tensor::<f32>::from_array((
         [3],
         vec![params.noise_scale, params.length_scale, params.noise_w],
     ))
-    .expect("scales tensor shape matches the vec's length by construction");
+    .map_err(|e| tensor_error("scales", e))?;
+    let speaker_id = params
+        .speaker_id
+        .map(|sid| {
+            Tensor::<i64>::from_array(([1], vec![sid])).map_err(|e| tensor_error("speaker id", e))
+        })
+        .transpose()?;
 
-    let speaker_id = params.speaker_id.map(|sid| {
-        Tensor::<i64>::from_array(([1], vec![sid]))
-            .expect("speaker id tensor shape matches the vec's length by construction")
-    });
-
-    InputTensors {
+    Ok(InputTensors {
         input,
         input_lengths,
         scales,
         speaker_id,
-    }
+    })
 }
 
 pub struct OrtInferenceEngine {
@@ -86,7 +94,7 @@ impl InferenceEngine for OrtInferenceEngine {
         ids: &PhonemeIdSequence,
         params: ResolvedInferenceParams,
     ) -> Result<SynthesizedAudio, InferenceError> {
-        let tensors = build_input_tensors(ids, &params);
+        let tensors = build_input_tensors(ids, &params)?;
 
         let outputs = if let Some(speaker_id) = tensors.speaker_id {
             self.session.run(ort::inputs![
@@ -131,21 +139,21 @@ mod tests {
     #[test]
     fn builds_three_tensors_when_speaker_id_is_none() {
         let ids = PhonemeIdSequence(vec![1, 10, 0, 2]);
-        let tensors = build_input_tensors(&ids, &params(None));
+        let tensors = build_input_tensors(&ids, &params(None)).unwrap();
         assert!(tensors.speaker_id.is_none());
     }
 
     #[test]
     fn builds_a_fourth_speaker_tensor_when_speaker_id_is_some() {
         let ids = PhonemeIdSequence(vec![1, 10, 0, 2]);
-        let tensors = build_input_tensors(&ids, &params(Some(3)));
+        let tensors = build_input_tensors(&ids, &params(Some(3))).unwrap();
         assert!(tensors.speaker_id.is_some());
     }
 
     #[test]
     fn input_tensor_shape_matches_the_id_sequence_length() {
         let ids = PhonemeIdSequence(vec![1, 10, 0, 20, 0, 2]);
-        let tensors = build_input_tensors(&ids, &params(None));
+        let tensors = build_input_tensors(&ids, &params(None)).unwrap();
         let (shape, data) = tensors.input.try_extract_tensor::<i64>().unwrap();
         assert_eq!(shape, &ort::value::Shape::new([1i64, 6]));
         assert_eq!(data.to_vec(), vec![1i64, 10, 0, 20, 0, 2]);
@@ -154,7 +162,7 @@ mod tests {
     #[test]
     fn scales_tensor_carries_noise_scale_length_scale_noise_w_in_order() {
         let ids = PhonemeIdSequence(vec![1, 2]);
-        let tensors = build_input_tensors(&ids, &params(None));
+        let tensors = build_input_tensors(&ids, &params(None)).unwrap();
         let (_, data) = tensors.scales.try_extract_tensor::<f32>().unwrap();
         assert_eq!(data.to_vec(), vec![0.667, 1.0, 0.8]);
     }
