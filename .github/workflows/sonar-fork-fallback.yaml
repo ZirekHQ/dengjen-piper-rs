@@ -1,6 +1,6 @@
 name: Sonar fork fallback
 
-# sonar.yml skips Sonar for fork PRs (no SONAR_TOKEN), but that check is required on main --
+# sonar.yaml skips Sonar for fork PRs (no SONAR_TOKEN), but that check is required on main --
 # a required check that never reports leaves fork PRs stuck, so this workflow posts it itself.
 
 # pull_request_target (write access + base-repo secrets) is required to post a status on a

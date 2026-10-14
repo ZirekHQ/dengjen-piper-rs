@@ -125,8 +125,8 @@ bootstrap note below), no more manual tagging either.
    release, so push a `v<current-workspace-version>` tag once, manually, to bootstrap it.
 
 2. Review and merge that PR. **This is the release gate** — merging it releases the version in
-   the diff, with nothing further to confirm: [`release.yml`](workflows/release.yml)
-   tags that merge commit `vX.Y.Z` and directly triggers [`publish-crates.yml`](workflows/publish-crates.yml),
+   the diff, with nothing further to confirm: [`release.yaml`](workflows/release.yaml)
+   tags that merge commit `vX.Y.Z` and directly triggers [`publish-crates.yaml`](workflows/publish-crates.yaml),
    which publishes all 8 crates to crates.io in dependency-graph order — `dengjen-espeak-rs-sys` +
    `dengjen-piper-core` (no internal deps) → `dengjen-espeak-rs` + `dengjen-stub-adapter` +
    `dengjen-fs-voice-repo` + `dengjen-ort-adapter` (each needs one tier-1 crate) →
@@ -134,7 +134,7 @@ bootstrap note below), no more manual tagging either.
    to land on the crates.io index before the next, dependent tier publishes.
 3. **Direct-release override**: setting `new_tag` (and optionally `dry_run`) on **Prepare
    release** skips `next-version.sh`, `bump-version.sh`, and the PR entirely, and hands off
-   straight to `release.yml` for the tag/publish given in `new_tag`. Because this bypasses the PR
+   straight to `release.yaml` for the tag/publish given in `new_tag`. Because this bypasses the PR
    review that's normally the release gate, it requires approval on the `release` environment
    (Maintainers team) before it runs. **Self-approval is currently still possible** — the
    environment's `prevent_self_review` setting hasn't been flipped to `true` yet (repo Settings,
@@ -144,7 +144,7 @@ bootstrap note below), no more manual tagging either.
 If publishing fails partway through, retry — no new tag needed either way, since every publish
 step is idempotent (skips a crate crates.io already has):
 - Same version, still current on `main`: use GitHub's "Re-run failed jobs" on the original
-  `release.yml` run (Actions tab). It re-runs just the failed job(s) against that run's own
+  `release.yaml` run (Actions tab). It re-runs just the failed job(s) against that run's own
   commit, no new dispatch needed.
 - Stale version (a newer version has since bumped past it on `main`): run **Prepare release**
   again, this time from the old tag (`--ref v<old-version>` on the CLI, or pick it from the

@@ -7,7 +7,7 @@
   },
   "packageRules": [
     {
-      "description": "rust-version in Cargo.toml is a deliberately low floor for consumers; CI.yml's msrv job must stay on that exact toolchain.",
+      "description": "rust-version in Cargo.toml is a deliberately low floor for consumers; CI.yaml's msrv job must stay on that exact toolchain.",
       "matchManagers": ["github-actions"],
       "matchDepNames": ["rust"],
       "enabled": false

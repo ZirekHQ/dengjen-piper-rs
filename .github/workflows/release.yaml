@@ -1,6 +1,6 @@
 name: Release
 
-# No trigger or gate of its own -- prepare-release.yml is the single entry point (its `prepare`
+# No trigger or gate of its own -- prepare-release.yaml is the single entry point (its `prepare`
 # job for the PR-merge path, `gate`+`release-now` for the override path). Reacts to that PR's
 # merge landing on main (push) or the override path's direct call (workflow_call).
 on:
@@ -101,7 +101,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: ./.github/workflows/publish-crates.yml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
+    uses: ./.github/workflows/publish-crates.yaml # zizmor: ignore[self-repository] CI is pinned to zizmor v1.28.0, which predates $/ syntax support
     with:
       dry_run: ${{ inputs.dry_run == true }}
 

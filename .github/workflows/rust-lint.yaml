@@ -99,7 +99,7 @@ jobs:
           # No toolchain needed (licenses/bans/sources don't build); advisories are covered by audit-check above.
           command: check licenses bans sources
 
-  # Mirrors CI.yml's `test` job exactly (kept in sync intentionally) under llvm-cov instrumentation.
+  # Mirrors CI.yaml's `test` job exactly (kept in sync intentionally) under llvm-cov instrumentation.
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 15
