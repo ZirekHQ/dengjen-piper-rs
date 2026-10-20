@@ -21,7 +21,7 @@ ort-adapter = { path = "crates/ort-adapter", package = "dengjen-ort-adapter", ve
 espeak-rs-adapter = { path = "crates/espeak-rs-adapter", package = "dengjen-espeak-rs-adapter", version = "0.2.8", optional = true }
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.89"
-ort = { version = "=2.0.0-rc.13" }
+ort = { version = "=2.0.0-rc.14" }
 espeak-ng = { version = "0.2.0", optional = true }
 unicode-normalization = "0.1"
 
