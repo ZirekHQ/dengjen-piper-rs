@@ -1,3 +1,6 @@
+use std::sync::OnceLock;
+
+use ort::environment::Environment;
 use ort::session::Session;
 use ort::value::Tensor;
 use piper_core::domain::audio::SynthesizedAudio;
@@ -52,9 +55,20 @@ pub struct OrtInferenceEngine {
     sample_rate: u32,
 }
 
+/// Returns the process-wide ONNX Runtime environment, creating it on first use.
+pub fn environment() -> Result<&'static Environment, InferenceError> {
+    static ENVIRONMENT: OnceLock<Result<Environment, String>> = OnceLock::new();
+    ENVIRONMENT
+        .get_or_init(|| ort::init().build().map_err(|e| e.to_string()))
+        .as_ref()
+        .map_err(|e| {
+            InferenceError::RuntimeFailure(format!("failed to initialise ort environment: {e}"))
+        })
+}
+
 impl OrtInferenceEngine {
     pub fn new(model_path: &std::path::Path, sample_rate: u32) -> Result<Self, InferenceError> {
-        let session = Session::builder()
+        let session = Session::builder(environment()?)
             .map_err(|e| {
                 InferenceError::RuntimeFailure(format!("failed to create session builder: {e}"))
             })?

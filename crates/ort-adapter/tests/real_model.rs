@@ -32,10 +32,11 @@ fn infers_against_a_real_onnx_model() {
 fn from_session_uses_the_given_sample_rate_and_can_infer() {
     let model_path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/model.onnx");
-    let session = ort::session::Session::builder()
-        .expect("session builder")
-        .commit_from_file(&model_path)
-        .expect("real model should load");
+    let session =
+        ort::session::Session::builder(dengjen_ort_adapter::environment().expect("environment"))
+            .expect("session builder")
+            .commit_from_file(&model_path)
+            .expect("real model should load");
     let mut engine = OrtInferenceEngine::from_session(session, 16000);
 
     let ids = PhonemeIdSequence(vec![1, 10, 0, 2]);
