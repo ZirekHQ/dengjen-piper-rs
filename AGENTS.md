@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Rust workspace that runs [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models. Edition 2024, MSRV 1.88, GPL-3.0-or-later.
+Rust workspace that runs [Piper](https://github.com/OHF-Voice/piper1-gpl) TTS models. Edition 2024, MSRV 1.92, GPL-3.0-or-later.
 
 ## Architecture
 
