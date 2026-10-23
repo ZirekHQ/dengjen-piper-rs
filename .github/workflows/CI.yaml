@@ -19,14 +19,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         # libasound2-dev: rodio (dev-dep, used by tests/examples) needs it, not the library itself.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo test (dengjen-piper-rs, default features, espeak-rs backend)
@@ -63,14 +60,11 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         # Same libasound2-dev rationale as the test job above.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo clippy (piper-core and Phase 2 adapters, deny warnings)
@@ -90,13 +84,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang (for bindgen)
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
@@ -123,13 +114,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang (for bindgen) and the arm64 cross toolchain
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev crossbuild-essential-arm64 pkg-config libssl-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
@@ -147,13 +135,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:

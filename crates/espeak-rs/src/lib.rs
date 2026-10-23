@@ -530,6 +530,24 @@ mod tests {
     }
 
     #[test]
+    fn test_kurmanji_word_stress() -> ESpeakResult<()> {
+        let cases = [
+            ("mafan", "mafˈan."),
+            ("malên", "mˈalen."),
+            ("kirin", "kɪɾˈɪn."),
+            ("hatin", "hatˈɪn."),
+        ];
+        for (word, expected) in cases {
+            assert_eq!(
+                text_to_phonemes(word, "ku", None)?.join(""),
+                expected,
+                "{word}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_it_splits_sentences() -> ESpeakResult<()> {
         let phonemes = text_to_phonemes(TEXT_ALICE, "en-US", None)?;
         assert_eq!(phonemes.len(), 3);
