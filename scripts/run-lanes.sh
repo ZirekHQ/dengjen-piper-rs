@@ -45,7 +45,7 @@ lane test-stub-adapter cargo test --locked -p dengjen-stub-adapter
 lane test-fs-voice-repo cargo test --locked -p dengjen-fs-voice-repo
 avx2_lane test-ort-adapter cargo test --locked -p dengjen-ort-adapter
 lane test-espeak-rs-adapter cargo test --locked -p dengjen-espeak-rs-adapter -- --test-threads=1
-lane ru-listx-packaged bash .github/scripts/check-ru-listx-packaged.sh
+lane ru-dict-built bash .github/scripts/check-ru-dict-built.sh
 
 lane deny cargo deny check
 lane audit cargo audit

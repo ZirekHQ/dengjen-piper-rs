@@ -50,8 +50,8 @@ jobs:
       - name: cargo test (dengjen-espeak-rs-adapter, single-threaded)
         # Same espeak-ng global-state constraint as dengjen-espeak-rs above.
         run: cargo test -p dengjen-espeak-rs-adapter -- --test-threads=1
-      - name: check ru_listx dictionary is packaged (#23)
-        run: bash .github/scripts/check-ru-listx-packaged.sh
+      - name: check the Russian dictionary includes ru_listx (#23)
+        run: bash .github/scripts/check-ru-dict-built.sh
 
   lint:
     name: clippy (piper-core and Phase 2 adapters)
