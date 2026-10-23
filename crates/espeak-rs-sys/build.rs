@@ -92,13 +92,18 @@ pub(crate) fn source_url(commit: &str) -> String {
     format!("https://github.com/espeak-ng/espeak-ng/archive/{commit}.tar.gz")
 }
 
-pub(crate) fn verify_sha256(bytes: &[u8], expected: &str) -> Result<(), String> {
+/// Checks the tar stream inside a gzip archive. GitHub does not promise stable gzip bytes for
+/// `/archive/<commit>.tar.gz`, but the tar stream of a fixed commit does not change.
+pub(crate) fn verify_tar_sha256(gz: &[u8], expected: &str) -> Result<(), String> {
     use sha2::{Digest, Sha256};
-    let actual = format!("{:x}", Sha256::digest(bytes));
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut flate2::read::GzDecoder::new(gz), &mut hasher)
+        .map_err(|e| format!("could not decompress the archive: {e}"))?;
+    let actual = format!("{:x}", hasher.finalize());
     if actual.eq_ignore_ascii_case(expected) {
         Ok(())
     } else {
-        Err(format!("sha256 is {actual}, expected {expected}"))
+        Err(format!("tar sha256 is {actual}, expected {expected}"))
     }
 }
 
@@ -138,7 +143,7 @@ fn fetch_pinned_archive(lock: &SourceLock) -> Vec<u8> {
     let bytes = download(&source_url(&lock.commit)).unwrap_or_else(|e| {
         panic!("{e}; set ESPEAK_NG_SOURCE to an espeak-ng checkout or .tar.gz to build offline")
     });
-    verify_sha256(&bytes, &lock.sha256)
+    verify_tar_sha256(&bytes, &lock.sha256)
         .unwrap_or_else(|e| panic!("espeak-ng {} tarball: {e}", lock.commit));
     bytes
 }
@@ -223,6 +228,9 @@ fn unpack_stripped(archive: &[u8], dst: &Path) -> std::io::Result<()> {
         if let Some(dir) = target.parent() {
             std::fs::create_dir_all(dir)?;
         }
+        // GitHub stamps every file with the commit time. Keeping it would let CMake treat sources
+        // from a re-pinned commit as older than the objects already built in OUT_DIR.
+        entry.set_preserve_mtime(false);
         entry.unpack(&target)?;
     }
     Ok(())

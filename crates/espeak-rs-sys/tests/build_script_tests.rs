@@ -7,7 +7,7 @@ use build_script::{
     BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, espeak_ng_data_dir_const_source,
     extract_tar_gz, materialize_espeak_ng_source, parse_clang_libraries_dir, parse_source_lock,
     resolve_espeak_ng_source, resolved_pcaudio_lib, resolved_sonic_lib, source_url, stripped_path,
-    verify_sha256,
+    verify_tar_sha256,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -325,17 +325,45 @@ fn points_the_download_at_the_pinned_commit() {
     );
 }
 
-#[test]
-fn accepts_a_matching_checksum_in_either_case() {
-    let known = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
-    assert!(verify_sha256(b"hello", known).is_ok());
-    assert!(verify_sha256(b"hello", &known.to_uppercase()).is_ok());
+fn tar_sha256_hex(tar_bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    format!("{:x}", Sha256::digest(tar_bytes))
 }
 
 #[test]
-fn rejects_a_mismatched_checksum() {
-    let error = verify_sha256(b"tampered", "00").unwrap_err();
+fn accepts_a_matching_tar_checksum_in_either_case() {
+    let tar_bytes = build_tar_fixture(&[("espeak-ng-abc/a.c", b"int a;")]);
+    let known = tar_sha256_hex(&tar_bytes);
+    let gz = gzip(&tar_bytes, flate2::Compression::fast());
+    assert!(verify_tar_sha256(&gz, &known).is_ok());
+    assert!(verify_tar_sha256(&gz, &known.to_uppercase()).is_ok());
+}
+
+#[test]
+fn verifies_the_tar_stream_whatever_the_gzip_layout() {
+    let tar_bytes = build_tar_fixture(&[("espeak-ng-abc/a.c", b"int a;")]);
+    let known = tar_sha256_hex(&tar_bytes);
+    let fast = gzip(&tar_bytes, flate2::Compression::fast());
+    let best = gzip(&tar_bytes, flate2::Compression::best());
+    assert_ne!(fast, best, "the fixtures need different gzip bytes");
+    assert!(verify_tar_sha256(&fast, &known).is_ok());
+    assert!(verify_tar_sha256(&best, &known).is_ok());
+}
+
+#[test]
+fn rejects_a_mismatched_tar_checksum() {
+    let gz = gzip(
+        &build_tar_fixture(&[("espeak-ng-abc/a.c", b"tampered")]),
+        flate2::Compression::fast(),
+    );
+    let error = verify_tar_sha256(&gz, "00").unwrap_err();
     assert!(error.contains("expected 00"), "{error}");
+}
+
+#[test]
+fn rejects_an_archive_that_is_not_gzip() {
+    let error = verify_tar_sha256(b"not a gzip stream", "00").unwrap_err();
+    assert!(error.contains("decompress"), "{error}");
 }
 
 #[test]
@@ -354,7 +382,7 @@ fn skips_the_archive_root_and_unsafe_paths() {
     assert_eq!(stripped_path(Path::new("espeak-ng-abc/../escape")), None);
 }
 
-fn build_tar_gz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
+fn build_tar_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut tar_bytes = Vec::new();
     {
         let mut builder = tar::Builder::new(&mut tar_bytes);
@@ -362,14 +390,46 @@ fn build_tar_gz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
             let mut header = tar::Header::new_gnu();
             header.set_size(content.len() as u64);
             header.set_mode(0o644);
+            header.set_mtime(0);
             header.set_cksum();
             builder.append_data(&mut header, path, *content).unwrap();
         }
         builder.finish().unwrap();
     }
-    let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-    std::io::Write::write_all(&mut gz, &tar_bytes).unwrap();
+    tar_bytes
+}
+
+fn gzip(bytes: &[u8], level: flate2::Compression) -> Vec<u8> {
+    let mut gz = flate2::write::GzEncoder::new(Vec::new(), level);
+    std::io::Write::write_all(&mut gz, bytes).unwrap();
     gz.finish().unwrap()
+}
+
+fn build_tar_gz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
+    gzip(&build_tar_fixture(entries), flate2::Compression::fast())
+}
+
+#[test]
+fn extracted_files_get_fresh_modification_times() {
+    let dst = scratch_path("extract-mtime-dst");
+    let archive = build_tar_gz_fixture(&[("espeak-ng-abc/a.c", b"int a;")]);
+
+    extract_tar_gz(&archive, &dst);
+
+    let age = std::time::SystemTime::now()
+        .duration_since(
+            std::fs::metadata(dst.join("a.c"))
+                .unwrap()
+                .modified()
+                .unwrap(),
+        )
+        .unwrap();
+    assert!(
+        age < std::time::Duration::from_secs(300),
+        "a file stamped with the archive's 1970 mtime would look older than previously built objects, got age {age:?}"
+    );
+
+    std::fs::remove_dir_all(&dst).unwrap();
 }
 
 #[test]
