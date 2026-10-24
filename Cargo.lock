@@ -348,7 +348,7 @@ checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
 name = "dengjen-espeak-rs"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-espeak-rs-sys",
  "tempfile",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-espeak-rs-adapter"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-espeak-rs",
  "dengjen-piper-core",
@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-espeak-rs-sys"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "bindgen",
  "cc",
@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-fs-voice-repo"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-piper-core",
  "serde",
@@ -388,7 +388,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-ort-adapter"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-piper-core",
  "ort",
@@ -396,14 +396,14 @@ dependencies = [
 
 [[package]]
 name = "dengjen-piper-core"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "unicode-normalization",
 ]
 
 [[package]]
 name = "dengjen-piper-rs"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-espeak-rs",
  "dengjen-espeak-rs-adapter",
@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "dengjen-stub-adapter"
-version = "0.2.10"
+version = "0.2.11"
 dependencies = [
  "dengjen-piper-core",
 ]
