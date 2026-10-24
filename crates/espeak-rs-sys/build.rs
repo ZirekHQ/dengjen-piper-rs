@@ -217,6 +217,46 @@ pub(crate) fn stripped_path(path: &Path) -> Option<PathBuf> {
     (safe && !rest.as_os_str().is_empty()).then_some(rest)
 }
 
+/// Whether a symlink at `relative` (inside the destination) points somewhere inside it too.
+fn symlink_stays_inside(relative: &Path, link: &Path) -> bool {
+    use std::path::Component::{CurDir, Normal, ParentDir};
+    // Directories between the destination root and the link's own directory.
+    let mut depth = relative.components().count().saturating_sub(1);
+    for component in link.components() {
+        match component {
+            Normal(_) => depth += 1,
+            CurDir => {}
+            ParentDir if depth > 0 => depth -= 1,
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// `Entry::unpack` does not validate link targets the way `unpack_in` does, and the stripped
+/// destination rules out `unpack_in`, so only files, directories and contained symlinks pass.
+pub(crate) fn entry_is_safe(
+    kind: tar::EntryType,
+    relative: &Path,
+    link: Option<&Path>,
+) -> Result<(), String> {
+    if kind.is_file() || kind.is_dir() {
+        return Ok(());
+    }
+    match link {
+        Some(link) if kind.is_symlink() && symlink_stays_inside(relative, link) => Ok(()),
+        Some(link) if kind.is_symlink() => Err(format!(
+            "symlink {} points outside the archive: {}",
+            relative.display(),
+            link.display()
+        )),
+        _ => Err(format!(
+            "unsupported {kind:?} entry in the archive: {}",
+            relative.display()
+        )),
+    }
+}
+
 fn unpack_stripped(archive: &[u8], dst: &Path) -> std::io::Result<()> {
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
     for entry in tar.entries()? {
@@ -224,6 +264,9 @@ fn unpack_stripped(archive: &[u8], dst: &Path) -> std::io::Result<()> {
         let Some(relative) = stripped_path(&entry.path()?) else {
             continue;
         };
+        let link = entry.link_name()?.map(|l| l.into_owned());
+        entry_is_safe(entry.header().entry_type(), &relative, link.as_deref())
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
         let target = dst.join(relative);
         if let Some(dir) = target.parent() {
             std::fs::create_dir_all(dir)?;

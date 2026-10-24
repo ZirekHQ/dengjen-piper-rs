@@ -4,10 +4,10 @@
 mod build_script;
 
 use build_script::{
-    BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, espeak_ng_data_dir_const_source,
-    extract_tar_gz, materialize_espeak_ng_source, parse_clang_libraries_dir, parse_source_lock,
-    resolve_espeak_ng_source, resolved_pcaudio_lib, resolved_sonic_lib, source_url, stripped_path,
-    verify_tar_sha256,
+    BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, entry_is_safe,
+    espeak_ng_data_dir_const_source, extract_tar_gz, materialize_espeak_ng_source,
+    parse_clang_libraries_dir, parse_source_lock, resolve_espeak_ng_source, resolved_pcaudio_lib,
+    resolved_sonic_lib, source_url, stripped_path, verify_tar_sha256,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -407,6 +407,77 @@ fn gzip(bytes: &[u8], level: flate2::Compression) -> Vec<u8> {
 
 fn build_tar_gz_fixture(entries: &[(&str, &[u8])]) -> Vec<u8> {
     gzip(&build_tar_fixture(entries), flate2::Compression::fast())
+}
+
+fn symlink_tar_gz_fixture(path: &str, target: &str) -> Vec<u8> {
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut header = tar::Header::new_gnu();
+        header.set_entry_type(tar::EntryType::Symlink);
+        header.set_size(0);
+        header.set_mtime(0);
+        builder.append_link(&mut header, path, target).unwrap();
+        builder.finish().unwrap();
+    }
+    gzip(&tar_bytes, flate2::Compression::fast())
+}
+
+#[test]
+fn allows_files_directories_and_symlinks_that_stay_inside() {
+    let relative = Path::new("src/include/espeak/speak_lib.h");
+    let inside = Path::new("../espeak-ng/speak_lib.h");
+    assert!(entry_is_safe(tar::EntryType::Regular, relative, None).is_ok());
+    assert!(entry_is_safe(tar::EntryType::Directory, relative, None).is_ok());
+    assert!(entry_is_safe(tar::EntryType::Symlink, relative, Some(inside)).is_ok());
+}
+
+#[test]
+fn refuses_symlinks_that_leave_the_destination() {
+    let relative = Path::new("src/include/espeak/speak_lib.h");
+    for escaping in ["../../../../etc/passwd", "/etc/passwd", "../../../../.."] {
+        let result = entry_is_safe(tar::EntryType::Symlink, relative, Some(Path::new(escaping)));
+        assert!(result.is_err(), "{escaping} should be refused");
+    }
+}
+
+#[test]
+fn refuses_hard_links_and_special_files() {
+    let relative = Path::new("src/a.c");
+    let link = Some(Path::new("src/b.c"));
+    assert!(entry_is_safe(tar::EntryType::Link, relative, link).is_err());
+    assert!(entry_is_safe(tar::EntryType::Fifo, relative, None).is_err());
+    assert!(entry_is_safe(tar::EntryType::Char, relative, None).is_err());
+}
+
+#[test]
+fn extracts_a_symlink_that_stays_inside() {
+    let dst = scratch_path("extract-symlink-inside-dst");
+    let archive = symlink_tar_gz_fixture("espeak-ng-abc/src/include/h.h", "../espeak-ng/h.h");
+
+    extract_tar_gz(&archive, &dst);
+
+    let link = dst.join("src").join("include").join("h.h");
+    assert_eq!(
+        std::fs::read_link(&link).unwrap(),
+        Path::new("../espeak-ng/h.h")
+    );
+
+    std::fs::remove_dir_all(&dst).unwrap();
+}
+
+#[test]
+fn extract_tar_gz_refuses_a_symlink_that_leaves_the_destination() {
+    let dst = scratch_path("extract-symlink-escape-dst");
+    let archive = symlink_tar_gz_fixture("espeak-ng-abc/escape", "../../../../etc/passwd");
+
+    let panicked = catch_unwind(AssertUnwindSafe(|| extract_tar_gz(&archive, &dst))).is_err();
+
+    assert!(panicked, "an escaping symlink should abort the build");
+    assert!(
+        !dst.exists(),
+        "a refused archive must not leave the destination behind"
+    );
 }
 
 #[test]
