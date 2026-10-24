@@ -398,7 +398,7 @@ fn extract_lib_names(out_dir: &Path, build_shared_libs: bool, target_os: &str) -
     lib_names
 }
 
-fn extract_lib_assets(out_dir: &Path, target_os: &str) -> Vec<PathBuf> {
+pub(crate) fn extract_lib_assets(out_dir: &Path, target_os: &str) -> Vec<PathBuf> {
     let shared_lib_pattern = if target_os == "windows" {
         "*.dll"
     } else if target_os == "macos" {
@@ -407,17 +407,22 @@ fn extract_lib_assets(out_dir: &Path, target_os: &str) -> Vec<PathBuf> {
         "*.so"
     };
 
-    let libs_dir = out_dir.join("lib");
-    let pattern = libs_dir.join(shared_lib_pattern);
-    debug_log!("Extract lib assets {}", pattern.display());
+    // CMake installs a Windows DLL as a runtime artifact into bin, not lib.
+    let asset_dirs: &[&str] = if target_os == "windows" {
+        &["lib", "bin"]
+    } else {
+        &["lib"]
+    };
     let mut files = Vec::new();
 
-    for entry in glob(pattern.to_str().unwrap()).unwrap() {
-        match entry {
-            Ok(path) => {
-                files.push(path);
+    for dir in asset_dirs {
+        let pattern = out_dir.join(dir).join(shared_lib_pattern);
+        debug_log!("Extract lib assets {}", pattern.display());
+        for entry in glob(pattern.to_str().unwrap()).unwrap() {
+            match entry {
+                Ok(path) => files.push(path),
+                Err(e) => eprintln!("cargo:warning=error={}", e),
             }
-            Err(e) => eprintln!("cargo:warning=error={}", e),
         }
     }
 
