@@ -23,14 +23,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install build dependencies
         # libasound2-dev: rodio (dev-dep) -> cpal -> alsa-sys needs it on Linux.
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
@@ -92,7 +89,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
         with:
@@ -107,14 +103,11 @@ jobs:
       contents: read
       code-quality: write
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install libclang, espeak-ng, and alsa
         # Same libasound2-dev rationale as the clippy job above.
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev espeak-ng libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
@@ -161,13 +154,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install build dependencies
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev llvm-dev libasound2-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - name: cargo semver-checks (workspace crates)
         uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9

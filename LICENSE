@@ -1,4 +1,4 @@
-piper-rs links against espeak-ng (vendored as a git submodule in
+piper-rs links against espeak-ng (built from a pinned upstream commit by
 crates/espeak-rs-sys), which is licensed under the GNU General Public
 License v3.0 or later (GPL-3.0-or-later). As a derivative work, piper-rs,
 espeak-rs, and espeak-rs-sys are licensed under the same terms below.

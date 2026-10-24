@@ -14,14 +14,14 @@ Hexagonal. `piper-core` holds the domain, use cases, and port traits; adapters i
 | `crates/fs-voice-repo` | Filesystem `VoiceRepository` |
 | `crates/stub-adapter` | Deterministic phonemizer test double |
 | `crates/espeak-rs` | Safe wrapper over espeak-ng; owns all `unsafe` FFI calls |
-| `crates/espeak-rs-sys` | bindgen bindings; vendors espeak-ng as a git submodule |
+| `crates/espeak-rs-sys` | bindgen bindings; `build.rs` downloads the espeak-ng commit pinned in `espeak-ng.lock` |
 | `src/` | `dengjen-piper-rs` facade crate wiring the adapters together |
 
 Architecture write-up: `docs/modules/ROOT/pages/architecture.adoc`.
 
 ## Build and test
 
-Clone with `--recurse-submodules` (or `git submodule update --init`). System packages: `pkg-config libssl-dev clang libclang-dev llvm-dev espeak-ng libasound2-dev`.
+The first build downloads the pinned espeak-ng tarball and checks its sha256; set `ESPEAK_NG_SOURCE` to an espeak-ng checkout or `.tar.gz` to build offline. `crates/espeak-rs-sys/scripts/update_espeak.py [COMMIT]` re-pins `espeak-ng.lock` (default: upstream master). System packages: `pkg-config libssl-dev clang libclang-dev llvm-dev espeak-ng libasound2-dev`.
 
 ```console
 cargo test -p dengjen-piper-core

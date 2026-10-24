@@ -23,13 +23,10 @@ jobs:
     env:
       DRY_RUN: ${{ inputs.dry_run }}
     steps:
-      - name: git-submodule-fix
-        run: git config --global protocol.file.allow always
       - name: install build dependencies
         run: sudo apt-get update && sudo apt-get install -y llvm llvm-dev llvm-runtime libclang-dev
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master, zizmor: ignore[ref-version-mismatch] no version tags published
         with:
@@ -70,11 +67,6 @@ jobs:
           set -euo pipefail
           version="$(awk '/^\[workspace\.package\]/{f=1;next} /^\[/{f=0} f && /^version = /{gsub(/version = "|"/,""); print; exit}' Cargo.toml)"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
-
-      # The raw espeak-ng submodule tree exceeds crates.io's 10MiB .crate cap once gzipped
-      # (cargo's .crate format is hardcoded to gzip), so it's pre-compressed with xz here.
-      - name: bundle espeak-ng data for publish
-        run: bash crates/espeak-rs-sys/scripts/bundle-espeak-ng.sh
 
       # VERSION is passed via env: rather than interpolated into run: directly -- the latter is
       # a script-injection shape GitHub expands as literal text before the shell runs it (flagged
