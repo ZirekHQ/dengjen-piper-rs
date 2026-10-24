@@ -4,7 +4,7 @@
 mod build_script;
 
 use build_script::{
-    BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, entry_is_safe,
+    BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, ensure_libs_installed, entry_is_safe,
     espeak_ng_data_dir_const_source, extract_tar_gz, is_below_a_symlink,
     materialize_espeak_ng_source, parse_clang_libraries_dir, parse_source_lock,
     resolve_espeak_ng_source, resolved_pcaudio_lib, resolved_sonic_lib, source_url, stripped_path,
@@ -502,6 +502,19 @@ fn extract_tar_gz_refuses_to_write_through_a_symlinked_directory() {
         !dst.exists(),
         "a refused archive must not leave the destination behind"
     );
+}
+
+#[test]
+fn passes_installed_libraries_through() {
+    let libs = vec!["espeak-ng".to_string(), "ucd".to_string()];
+    let kept = ensure_libs_installed(libs.clone(), Path::new("/out/lib")).unwrap();
+    assert_eq!(kept, libs);
+}
+
+#[test]
+fn names_the_directory_when_no_libraries_were_installed() {
+    let error = ensure_libs_installed(Vec::new(), Path::new("/out/lib")).unwrap_err();
+    assert!(error.contains("/out/lib"), "{error}");
 }
 
 #[test]
