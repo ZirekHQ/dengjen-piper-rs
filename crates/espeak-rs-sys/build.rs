@@ -1,5 +1,6 @@
 use cmake::Config;
 use glob::glob;
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -218,15 +219,18 @@ pub(crate) fn stripped_path(path: &Path) -> Option<PathBuf> {
 }
 
 /// Whether a symlink at `relative` (inside the destination) points somewhere inside it too.
+/// `..` is accepted only as a leading prefix: after a normal component it could step out of a
+/// directory that is itself an extracted symlink, which a lexical count cannot see.
 fn symlink_stays_inside(relative: &Path, link: &Path) -> bool {
     use std::path::Component::{CurDir, Normal, ParentDir};
     // Directories between the destination root and the link's own directory.
     let mut depth = relative.components().count().saturating_sub(1);
+    let mut descended = false;
     for component in link.components() {
         match component {
-            Normal(_) => depth += 1,
+            Normal(_) => descended = true,
             CurDir => {}
-            ParentDir if depth > 0 => depth -= 1,
+            ParentDir if depth > 0 && !descended => depth -= 1,
             _ => return false,
         }
     }
@@ -257,16 +261,36 @@ pub(crate) fn entry_is_safe(
     }
 }
 
+/// Refuses an entry written beneath a symlink extracted earlier, which would move it, and what
+/// the symlink checks assume about `..`, somewhere else.
+pub(crate) fn is_below_a_symlink(relative: &Path, symlinks: &HashSet<PathBuf>) -> bool {
+    relative
+        .ancestors()
+        .skip(1)
+        .any(|ancestor| symlinks.contains(ancestor))
+}
+
 fn unpack_stripped(archive: &[u8], dst: &Path) -> std::io::Result<()> {
+    let invalid = |e: String| std::io::Error::new(std::io::ErrorKind::InvalidData, e);
+    let mut symlinks = HashSet::new();
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
     for entry in tar.entries()? {
         let mut entry = entry?;
         let Some(relative) = stripped_path(&entry.path()?) else {
             continue;
         };
+        let kind = entry.header().entry_type();
         let link = entry.link_name()?.map(|l| l.into_owned());
-        entry_is_safe(entry.header().entry_type(), &relative, link.as_deref())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        entry_is_safe(kind, &relative, link.as_deref()).map_err(invalid)?;
+        if is_below_a_symlink(&relative, &symlinks) {
+            return Err(invalid(format!(
+                "{} is below a symlink in the archive",
+                relative.display()
+            )));
+        }
+        if kind.is_symlink() {
+            symlinks.insert(relative.clone());
+        }
         let target = dst.join(relative);
         if let Some(dir) = target.parent() {
             std::fs::create_dir_all(dir)?;

@@ -5,9 +5,10 @@ mod build_script;
 
 use build_script::{
     BUILD_CONFIG_ENV_VARS, EspeakNgSource, copy_folder, entry_is_safe,
-    espeak_ng_data_dir_const_source, extract_tar_gz, materialize_espeak_ng_source,
-    parse_clang_libraries_dir, parse_source_lock, resolve_espeak_ng_source, resolved_pcaudio_lib,
-    resolved_sonic_lib, source_url, stripped_path, verify_tar_sha256,
+    espeak_ng_data_dir_const_source, extract_tar_gz, is_below_a_symlink,
+    materialize_espeak_ng_source, parse_clang_libraries_dir, parse_source_lock,
+    resolve_espeak_ng_source, resolved_pcaudio_lib, resolved_sonic_lib, source_url, stripped_path,
+    verify_tar_sha256,
 };
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -439,6 +440,65 @@ fn refuses_symlinks_that_leave_the_destination() {
         let result = entry_is_safe(tar::EntryType::Symlink, relative, Some(Path::new(escaping)));
         assert!(result.is_err(), "{escaping} should be refused");
     }
+}
+
+#[test]
+fn refuses_dot_dot_after_a_normal_component() {
+    // `a/s -> ..` is fine, but `b/t -> ../a/s/..` steps out of a symlinked directory.
+    let relative = Path::new("b/t");
+    for chained in ["../a/s/..", "x/..", "../x/../.."] {
+        let result = entry_is_safe(tar::EntryType::Symlink, relative, Some(Path::new(chained)));
+        assert!(result.is_err(), "{chained} should be refused");
+    }
+    let first = entry_is_safe(
+        tar::EntryType::Symlink,
+        Path::new("a/s"),
+        Some(Path::new("..")),
+    );
+    assert!(first.is_ok());
+}
+
+#[test]
+fn spots_entries_below_an_extracted_symlink() {
+    let symlinks = std::collections::HashSet::from([PathBuf::from("a/s")]);
+    assert!(is_below_a_symlink(Path::new("a/s/f"), &symlinks));
+    assert!(is_below_a_symlink(Path::new("a/s/deep/f"), &symlinks));
+    assert!(!is_below_a_symlink(Path::new("a/s"), &symlinks));
+    assert!(!is_below_a_symlink(Path::new("a/other/f"), &symlinks));
+}
+
+#[test]
+fn extract_tar_gz_refuses_to_write_through_a_symlinked_directory() {
+    let dst = scratch_path("extract-write-through-dst");
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let mut link = tar::Header::new_gnu();
+        link.set_entry_type(tar::EntryType::Symlink);
+        link.set_size(0);
+        link.set_mtime(0);
+        builder
+            .append_link(&mut link, "espeak-ng-abc/a/s", ".")
+            .unwrap();
+        let mut file = tar::Header::new_gnu();
+        file.set_size(1);
+        file.set_mode(0o644);
+        file.set_mtime(0);
+        file.set_cksum();
+        builder
+            .append_data(&mut file, "espeak-ng-abc/a/s/f", &b"x"[..])
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    let archive = gzip(&tar_bytes, flate2::Compression::fast());
+
+    let panicked = catch_unwind(AssertUnwindSafe(|| extract_tar_gz(&archive, &dst))).is_err();
+
+    assert!(panicked, "writing below an extracted symlink should abort");
+    assert!(
+        !dst.exists(),
+        "a refused archive must not leave the destination behind"
+    );
 }
 
 #[test]
