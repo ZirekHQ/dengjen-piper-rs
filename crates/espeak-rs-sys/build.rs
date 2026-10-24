@@ -640,6 +640,10 @@ fn main() {
     let lock_text = std::fs::read_to_string(&lock_path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", lock_path.display()));
     let source_override = env::var_os("ESPEAK_NG_SOURCE").map(PathBuf::from);
+    if let Some(path) = &source_override {
+        // Cargo walks a directory for changes, so editing the override rebuilds from it.
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
     debug_log!(
         "Materializing espeak-ng source (override {:?}) into {}",
         source_override,
