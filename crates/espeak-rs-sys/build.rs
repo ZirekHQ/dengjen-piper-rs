@@ -828,6 +828,10 @@ fn main() {
         println!("cargo:rustc-link-lib={}={}", espeak_libs_kind, lib);
     }
 
+    if target_os == "windows" {
+        println!("cargo:rustc-link-lib=dylib=advapi32");
+    }
+
     if target_os == "windows" && cfg!(debug_assertions) {
         println!("cargo:rustc-link-lib=dylib=msvcrtd");
     }
