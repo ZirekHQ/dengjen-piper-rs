@@ -6,17 +6,17 @@ set -euo pipefail
 # dictionary built with the extra list is about 9 MB; without it, it is far smaller.
 min_bytes=5000000
 
-mapfile -t dicts < <(find target -path '*dengjen-espeak-rs-sys-*/out/share/espeak-ng-data/ru_dict')
-if [ "${#dicts[@]}" -eq 0 ]; then
+# A cached target/ can hold dictionaries from earlier builds. Run this right after the build, so
+# the newest one is the current build's.
+dict="$(find target -path '*dengjen-espeak-rs-sys-*/out/share/espeak-ng-data/ru_dict' -printf '%T@ %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)"
+if [ -z "$dict" ]; then
   echo "::error::no built ru_dict found under target/; build dengjen-espeak-rs-sys first" >&2
   exit 1
 fi
 
-for dict in "${dicts[@]}"; do
-  size=$(wc -c < "$dict")
-  if [ "$size" -lt "$min_bytes" ]; then
-    echo "::error::${dict} is ${size} bytes, under ${min_bytes}; the Russian extra dictionary ru_listx was left out of the build (see #23)" >&2
-    exit 1
-  fi
-  echo "${dict} is ${size} bytes"
-done
+size=$(wc -c < "$dict")
+if [ "$size" -lt "$min_bytes" ]; then
+  echo "::error::${dict} is ${size} bytes, under ${min_bytes}; the Russian extra dictionary ru_listx was left out of the build (see #23)" >&2
+  exit 1
+fi
+echo "${dict} is ${size} bytes"
