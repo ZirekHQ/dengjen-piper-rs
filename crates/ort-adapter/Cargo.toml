@@ -9,7 +9,7 @@ edition = "2024"
 
 [dependencies]
 piper-core = { path = "../piper-core", package = "dengjen-piper-core", version = "0.2.12" }
-ort = { version = "=2.0.0-rc.14" }
+ort = { version = "=2.0.0-rc.15" }
 
 [dev-dependencies]
 piper-core = { path = "../piper-core", package = "dengjen-piper-core", features = ["testing"] }
