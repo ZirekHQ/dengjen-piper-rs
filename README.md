@@ -1,5 +1,9 @@
 # dengjen-piper-rs
 
+> **Archived.** Development moved to [ZirekHQ/dengjen](https://github.com/ZirekHQ/dengjen).
+> Piper TTS now lives in [`dengjen-tts-piper`](https://crates.io/crates/dengjen-tts-piper) and the espeak-ng bindings in
+> [`dengjen-espeak-rs-sys`](https://crates.io/crates/dengjen-espeak-rs-sys). Open issues and PRs there.
+
 [![Crates](https://img.shields.io/crates/v/dengjen-piper-rs?logo=rust&color=F07B3C)](https://crates.io/crates/dengjen-piper-rs/)
 
 [Project board](https://github.com/orgs/ZirekHQ/projects/1) — live roadmap and status for this repo's issues.
